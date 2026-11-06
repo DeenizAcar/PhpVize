@@ -1,0 +1,558 @@
+(function () {
+  'use strict';
+
+  var TOPICS = window.TOPICS;
+  var EXAMS = window.EXAMS;
+  var TQ = window.TOPIC_QUESTIONS;
+  var EXTRA = window.EXTRA_CODE;
+  var app = document.getElementById('app');
+  var LETTERS = 'ABCDE';
+
+  /* ---------- Yardımcılar ---------- */
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  // Satır içi biçim: `kod` ve **kalın**
+  function fmt(s) {
+    return String(s).split('`').map(function (seg, i) {
+      if (i % 2) return '<code>' + esc(seg) + '</code>';
+      return esc(seg).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    }).join('');
+  }
+  function shuffle(a) {
+    for (var i = a.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+  }
+  function copy(q, extra) { return Object.assign({}, q, extra || {}); }
+  function topicTitle(id) { var t = TOPICS.find(function (x) { return x.id === id; }); return t ? t.title : ''; }
+  function topicIndex(id) { return TOPICS.findIndex(function (x) { return x.id === id; }); }
+
+  /* ---------- PHP / HTML renklendirme ---------- */
+  var KW = ['if', 'else', 'elseif', 'for', 'foreach', 'while', 'as', 'function', 'return', 'echo', 'true', 'false', 'null', 'exit'];
+  var HL = /(\u0001\d+\u0001)|(<!--[\s\S]*?-->|\/\/[^\n]*|\/\*[\s\S]*?\*\/)|("(?:\\.|[^"\\])*"?|'(?:\\.|[^'\\\n])*'?)|(<\?php|\?>)|(<\/?[a-zA-Z][\w-]*)|(\$[A-Za-z_]\w*)|(\b\d+(?:\.\d+)?\b)|(\b[A-Za-z_]\w*\b)/g;
+
+  function hl(code) {
+    var out = '', last = 0, m;
+    HL.lastIndex = 0;
+    while ((m = HL.exec(code))) {
+      out += esc(code.slice(last, m.index));
+      var t = m[0], cls = null;
+      last = HL.lastIndex;
+      if (m[1]) { out += t; continue; }
+      if (m[2]) cls = 'c';
+      else if (m[3]) cls = 's';
+      else if (m[4]) cls = 'k';
+      else if (m[5]) cls = 't';
+      else if (m[6]) cls = 'v';
+      else if (m[7]) cls = 'n';
+      else if (m[8]) {
+        if (KW.indexOf(t) !== -1) cls = 'k';
+        else if (/^[A-Z][A-Z0-9_]+$/.test(t)) cls = 'cn';
+        else if (code.charAt(last) === '(') cls = 'f';
+      }
+      out += cls ? '<span class="' + cls + '">' + esc(t) + '</span>' : esc(t);
+    }
+    return out + esc(code.slice(last));
+  }
+  function codeBlock(code, out) {
+    return '<div class="codeblock"><pre class="code">' + hl(code) + '</pre>' +
+      (out ? '<div class="out"><span class="lbl">Çıktı</span>' + esc(out) + '</div>' : '') + '</div>';
+  }
+
+  /* ---------- Kayıtlı en iyi skorlar ---------- */
+  var BEST_KEY = 'phpvize-best';
+  function getBest() { try { return JSON.parse(localStorage.getItem(BEST_KEY)) || {}; } catch (e) { return {}; } }
+  function saveBest(id, pct) {
+    var b = getBest();
+    if (!(id in b) || pct > b[id]) { b[id] = pct; try { localStorage.setItem(BEST_KEY, JSON.stringify(b)); } catch (e) { /* yok say */ } }
+  }
+
+  /* ---------- Test tanımları ---------- */
+  function poolOf(type) {
+    var out = [];
+    Object.keys(TQ).forEach(function (tid) {
+      TQ[tid].forEach(function (q) { if (q.type === type) out.push(copy(q, { topic: tid })); });
+    });
+    EXAMS.forEach(function (e) { e.questions.forEach(function (q) { if (q.type === type) out.push(copy(q)); }); });
+    return out;
+  }
+  function pickSpread(arr, n) {
+    var sh = shuffle(arr.slice()), used = {}, picked = [];
+    sh.forEach(function (q) { if (picked.length < n && !used[q.topic]) { picked.push(q); used[q.topic] = 1; } });
+    sh.forEach(function (q) { if (picked.length < n && picked.indexOf(q) === -1) picked.push(q); });
+    return picked.sort(function (a, b) { return topicIndex(a.topic) - topicIndex(b.topic); });
+  }
+  function codePool() {
+    return EXAMS.map(function (e) { return e.questions.filter(function (q) { return q.type === 'code'; })[0]; })
+      .concat(EXTRA).map(function (q) { return copy(q); });
+  }
+
+  var TESTS = [];
+  EXAMS.forEach(function (e) {
+    TESTS.push({
+      id: e.id, group: 'vize', title: e.title, desc: e.desc, mode: 'exam', featured: e.featured, showTopic: true,
+      count: e.questions.length,
+      build: function () { return e.questions.map(function (q) { return copy(q); }); }
+    });
+  });
+  TESTS.push({
+    id: 'rastgele', group: 'vize', title: 'Rastgele vize', desc: 'Her açılışta farklı: tüm soru bankasından 10 test + 6 boşluk + 1 kod.',
+    mode: 'exam', random: true, showTopic: true, count: 17,
+    build: function () { return pickSpread(poolOf('mc'), 10).concat(pickSpread(poolOf('fill'), 6), [shuffle(codePool())[0]]); }
+  });
+  TOPICS.forEach(function (t, i) {
+    TESTS.push({
+      id: 'konu-' + t.id, group: 'konu', title: (i + 1) + '. ' + t.title, mode: 'practice', count: TQ[t.id].length,
+      build: function () { return TQ[t.id].map(function (q) { return copy(q, { topic: t.id }); }); }
+    });
+  });
+  TESTS.push({
+    id: 'kod', group: 'ek', title: 'Kod tamamlama pratiği', desc: '17. soru tipi: foreach + if + toplam/sayaç kalıbı.',
+    mode: 'practice', showTopic: false, count: codePool().length, build: codePool
+  });
+  TESTS.push({
+    id: 'karisik', group: 'ek', title: 'Karışık 20 soru', desc: 'Konu testlerinden rastgele, anında kontrol.',
+    mode: 'practice', random: true, showTopic: true, count: 20,
+    build: function () { return shuffle(poolOf('mc').concat(poolOf('fill'))).slice(0, 20); }
+  });
+
+  /* ---------- Sekmeler ---------- */
+  function setTab(name) {
+    document.querySelectorAll('.tabs a').forEach(function (a) { a.classList.toggle('active', a.dataset.tab === name); });
+  }
+
+  /* ---------- Genel tekrar ---------- */
+  function renderBlock(b) {
+    switch (b.t) {
+      case 'p': return '<p>' + fmt(b.text) + '</p>';
+      case 'ul': return '<ul>' + b.items.map(function (x) { return '<li>' + fmt(x) + '</li>'; }).join('') + '</ul>';
+      case 'code': return codeBlock(b.code, b.out);
+      case 'table':
+        return '<div class="tbl-wrap"><table><thead><tr>' + b.head.map(function (h) { return '<th>' + fmt(h) + '</th>'; }).join('') +
+          '</tr></thead><tbody>' + b.rows.map(function (r) {
+            return '<tr>' + r.map(function (c) { return '<td>' + fmt(c) + '</td>'; }).join('') + '</tr>';
+          }).join('') + '</tbody></table></div>';
+      case 'trap': return '<div class="callout trap"><span class="label">Tuzak</span>' + fmt(b.text) + '</div>';
+      case 'tip': return '<div class="callout tip"><span class="label">Sınavda</span>' + fmt(b.text) + '</div>';
+      case 'low': return '<div class="callout low"><span class="label">Düşük öncelik</span>' + fmt(b.text) + '</div>';
+      default: return '';
+    }
+  }
+
+  function renderReview() {
+    var toc = '<aside class="toc"><div class="toc-title">İçindekiler</div>' +
+      '<a href="#tekrar/format" data-sec="format"><span class="num">·</span>Vize formatı</a>' +
+      '<a href="#tekrar/tuzaklar" data-sec="tuzaklar"><span class="num">!</span>Kritik tuzaklar</a>' +
+      '<div class="toc-sep"></div>' +
+      TOPICS.map(function (t, i) {
+        return '<a href="#tekrar/' + t.id + '" data-sec="' + t.id + '"><span class="num">' + (i + 1) + '</span>' + esc(t.title) + '</a>';
+      }).join('') + '</aside>';
+
+    var chips = '<nav class="chips">' +
+      '<a href="#tekrar/tuzaklar" data-sec="tuzaklar">Tuzaklar</a>' +
+      TOPICS.map(function (t, i) { return '<a href="#tekrar/' + t.id + '" data-sec="' + t.id + '">' + (i + 1) + '. ' + esc(t.title) + '</a>'; }).join('') +
+      '</nav>';
+
+    var format = '<section class="card" id="t-format"><h1>Genel tekrar</h1>' +
+      '<p class="lead">Hocanın verdiği 14 konunun özeti. Ana kaynak çalışma soruları ve kitapçık; slaytlardan sadece bu konulara ait kısımlar alındı.</p>' +
+      '<h2>Vize formatı</h2><div class="format-grid">' +
+      window.EXAM_FORMAT.map(function (f) {
+        return '<div class="format-box"><div class="range">' + esc(f.range) + '</div><div class="what">' + esc(f.what) +
+          '</div><div class="pts">' + f.pts + ' <small>puan · ' + esc(f.per) + '</small></div></div>';
+      }).join('') + '</div>' +
+      '<p style="margin:14px 0 0"><a class="btn-link" href="#test/hoca">Hocanın 17 sorusunu çöz →</a></p></section>';
+
+    var traps = '<section class="card" id="t-tuzaklar"><h2>Kritik tuzaklar</h2>' +
+      '<p class="topic-src" style="margin-top:4px">Çalışma sorularındaki yanlış şıkların neredeyse hepsi bunlardan biri.</p>' +
+      '<ol class="traps-list">' + window.TRAPS.map(function (x) {
+        return '<li>' + fmt(x.t) + ' <a class="go" href="#tekrar/' + x.topic + '">konu →</a></li>';
+      }).join('') + '</ol></section>';
+
+    var topics = TOPICS.map(function (t, i) {
+      return '<section class="card topic" id="t-' + t.id + '">' +
+        '<div class="topic-head"><span class="n">' + (i + 1) + '</span><h2>' + esc(t.title) + '</h2><span class="spacer"></span>' +
+        '<a class="btn-link" href="#test/konu-' + t.id + '">Konu testi (' + TQ[t.id].length + ' soru) →</a></div>' +
+        '<p class="topic-src">' + esc(t.src) + '</p>' +
+        t.blocks.map(renderBlock).join('') + '</section>';
+    }).join('');
+
+    app.innerHTML = '<div class="review">' + toc + '<div class="review-main">' + chips + format + traps + topics + '</div></div>';
+    observeSections();
+  }
+
+  var observer = null;
+  function observeSections() {
+    if (observer) observer.disconnect();
+    if (!('IntersectionObserver' in window)) return;
+    observer = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (!en.isIntersecting) return;
+        var id = en.target.id.replace(/^t-/, '');
+        document.querySelectorAll('[data-sec]').forEach(function (a) { a.classList.toggle('active', a.dataset.sec === id); });
+        var chip = document.querySelector('.chips [data-sec="' + id + '"]');
+        if (chip && chip.parentNode.scrollWidth > chip.parentNode.clientWidth) {
+          chip.parentNode.scrollLeft = chip.offsetLeft - 20;
+        }
+      });
+    }, { rootMargin: '-90px 0px -70% 0px' });
+    document.querySelectorAll('.review-main > section').forEach(function (s) { observer.observe(s); });
+  }
+
+  function scrollToSection(id) {
+    var el = document.getElementById('t-' + id);
+    if (el) el.scrollIntoView();
+  }
+
+  /* ---------- Test listesi ---------- */
+  function renderTestList() {
+    var best = getBest();
+    function card(t) {
+      var b = best[t.id];
+      var bestTxt = b == null ? '' : '<span class="badge best">En iyi: ' + (t.mode === 'exam' ? b + '/100' : '%' + b) + '</span>';
+      var meta = t.mode === 'exam'
+        ? '<span class="badge exam">Vize modu</span><span>' + t.count + ' soru · 100 puan</span>'
+        : '<span>' + t.count + ' soru · anında kontrol</span>';
+      return '<a class="test-card' + (t.featured ? ' featured' : '') + '" href="#test/' + t.id + '">' +
+        '<div class="t">' + esc(t.title) + '</div>' + (t.desc ? '<div class="d">' + esc(t.desc) + '</div>' : '') +
+        '<div class="meta">' + meta + bestTxt + '</div></a>';
+    }
+    function group(title, key, note) {
+      var list = TESTS.filter(function (t) { return t.group === key; });
+      return '<div class="group-title">' + title + '</div>' + (note ? '<p class="lead" style="margin:-4px 0 10px;font-size:.9rem">' + note + '</p>' : '') +
+        '<div class="test-grid">' + list.map(card).join('') + '</div>';
+    }
+    app.innerHTML = '<h1>Test</h1>' +
+      '<p class="lead">Vize: 1–10 test (50 p) · 11–16 boşluk doldurma (30 p) · 17 kod tamamlama (20 p).</p>' +
+      group('Vize formatında (100 puan)', 'vize', 'Cevaplar sonda topluca puanlanır, gerçek sınav gibi.') +
+      group('Konu testleri', 'konu', 'Her soru anında kontrol edilir ve açıklaması gösterilir.') +
+      group('Ek pratik', 'ek');
+  }
+
+  /* ---------- Test ekranı ---------- */
+  var S = null;
+
+  function normAns(s) { return String(s == null ? '' : s).trim().replace(/\s+/g, ' '); }
+  function matchAns(input, answers, cs) {
+    var s = normAns(input);
+    if (!s) return false;
+    var cands = [s, s.replace(/^["']+|["']+$/g, '').trim(), s.replace(/;$/, '').trim()];
+    var n = function (x) { return cs ? x : x.toLowerCase(); };
+    return answers.some(function (a) { return cands.some(function (c) { return c !== '' && n(c) === n(a); }); });
+  }
+
+  function qPoints(q) { return q.type === 'code' ? 20 : 5; }
+
+  function codeWithBlanks(q, i) {
+    var src = q.type === 'fill'
+      ? q.code.replace('____', '\u00010\u0001')
+      : q.code.replace(/\{\{(\d)\}\}/g, function (m, n) { return '\u0001' + (n - 1) + '\u0001'; });
+    var html = hl(src).replace(/\u0001(\d+)\u0001/g, function (m, k) {
+      var no = +k + 1;
+      return (q.type === 'code' ? '<span class="blank-no">' + no + '</span>' : '') +
+        '<input class="blank" data-q="' + i + '" data-b="' + k + '" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="Boşluk ' + no + '">';
+    });
+    return '<div class="codeblock"><pre class="code">' + html + '</pre></div>';
+  }
+
+  function qHtml(q, i) {
+    var exam = S.t.mode === 'exam';
+    var top = '<div class="q-top"><span class="qn">' + (i + 1) + '.</span>' +
+      (exam ? '<span class="badge">' + qPoints(q) + ' puan</span>' : '') +
+      (S.t.showTopic && q.topic ? '<span class="badge">' + esc(topicTitle(q.topic)) + '</span>' : '') +
+      '<span class="res"></span></div>';
+    var body = '';
+    if (q.type === 'code' && q.title) body += '<div class="q-text"><strong>' + esc(q.title) + '</strong></div>';
+    body += '<div class="q-text">' + fmt(q.q) + '</div>';
+    if (q.type === 'mc') {
+      if (q.code) body += codeBlock(q.code);
+      body += '<ul class="opts">' + q.opts.map(function (o, k) {
+        return '<li><button type="button" class="opt" data-q="' + i + '" data-o="' + k + '"><span class="L">' + LETTERS[k] + '</span><span>' + fmt(o) + '</span></button></li>';
+      }).join('') + '</ul>';
+    } else {
+      body += codeWithBlanks(q, i);
+      if (!exam) {
+        body += '<div class="q-actions"><button type="button" class="btn" data-act="check" data-q="' + i + '">Kontrol et</button>' +
+          '<span class="hint">veya Enter</span></div>';
+      }
+    }
+    body += '<div class="exp" hidden></div>';
+    return '<div class="q" id="q-' + i + '">' + top + body + '</div>';
+  }
+
+  var SECTION_NAMES = { mc: 'Test', fill: 'Boşluk doldurma', code: 'Kod tamamlama' };
+
+  function renderTest(id) {
+    var t = TESTS.filter(function (x) { return x.id === id; })[0];
+    if (!t) {
+      app.innerHTML = '<a class="back" href="#test">← Testler</a><p class="empty">Test bulunamadı.</p>';
+      return;
+    }
+    var qs = t.build();
+    S = {
+      t: t, qs: qs,
+      ans: qs.map(function (q) { return q.type === 'code' ? q.blanks.map(function () { return ''; }) : (q.type === 'fill' ? '' : null); }),
+      res: qs.map(function () { return null; }),
+      submitted: false
+    };
+
+    var exam = t.mode === 'exam';
+    var head = '<div class="test-head"><a class="back" href="#test">← Testler</a><h1>' + esc(t.title) + '</h1><div class="info">' +
+      (exam ? '<span class="badge exam">Vize modu</span><span>' + qs.length + ' soru · 100 puan · cevaplar sonda puanlanır</span>'
+            : '<span>' + qs.length + ' soru · her soru anında kontrol edilir</span>') +
+      '</div></div><div id="result"></div>';
+
+    var body = '';
+    var lastType = null;
+    qs.forEach(function (q, i) {
+      if (exam && q.type !== lastType) {
+        var idx = qs.map(function (x, k) { return x.type === q.type ? k : -1; }).filter(function (k) { return k >= 0; });
+        var pts = idx.reduce(function (s, k) { return s + qPoints(qs[k]); }, 0);
+        var range = idx.length > 1 ? 'Soru ' + (idx[0] + 1) + '–' + (idx[idx.length - 1] + 1) : 'Soru ' + (idx[0] + 1);
+        body += '<div class="section-title"><h2>' + SECTION_NAMES[q.type] + '</h2><span class="sp">' + range + ' · ' + pts + ' puan</span></div>';
+        lastType = q.type;
+      }
+      body += qHtml(q, i);
+    });
+
+    var bar = exam
+      ? '<div class="progress" id="prog"><span id="prog-text"></span><span class="grow"></span><button type="button" class="btn" data-act="submit">Sınavı bitir</button></div>'
+      : '<div class="progress" id="prog"><span id="prog-text"></span><span class="grow"></span><button type="button" class="btn ghost" data-act="retry">' + (t.random ? 'Yeni sorular' : 'Baştan') + '</button></div>';
+
+    app.innerHTML = head + body + bar;
+    updateProgress();
+  }
+
+  function answered(i) {
+    var q = S.qs[i], a = S.ans[i];
+    if (q.type === 'mc') return a !== null;
+    if (q.type === 'fill') return normAns(a) !== '';
+    return a.some(function (x) { return normAns(x) !== ''; });
+  }
+
+  function grade(i) {
+    var q = S.qs[i], a = S.ans[i];
+    if (q.type === 'mc') { var ok = a === q.a; return { ok: ok, frac: ok ? 1 : 0, empty: a === null }; }
+    if (q.type === 'fill') { var ok2 = matchAns(a, q.ans, q.cs); return { ok: ok2, frac: ok2 ? 1 : 0, empty: normAns(a) === '' }; }
+    var parts = q.blanks.map(function (b, k) { return matchAns(a[k], b.ans, b.cs); });
+    var n = parts.filter(Boolean).length;
+    return { ok: n === parts.length, parts: parts, frac: n / parts.length, empty: !answered(i) };
+  }
+
+  function showResult(i) {
+    var q = S.qs[i], r = S.res[i], el = document.getElementById('q-' + i);
+    if (!el) return;
+    el.classList.add(r.ok ? 'is-ok' : 'is-bad');
+    var res = el.querySelector('.res');
+    if (q.type === 'code') {
+      var n = r.parts.filter(Boolean).length;
+      res.textContent = n + '/' + r.parts.length + ' boşluk doğru' + (S.t.mode === 'exam' ? ' · ' + Math.round(20 * r.frac) + ' puan' : '');
+    } else {
+      res.textContent = r.ok ? '✓ Doğru' : (r.empty ? '— Boş' : '✗ Yanlış');
+    }
+    res.className = 'res ' + (r.ok ? 'ok' : 'bad');
+
+    var exp = '';
+    if (q.type === 'mc') {
+      el.querySelectorAll('.opt').forEach(function (b) {
+        var k = +b.dataset.o;
+        b.disabled = true;
+        b.classList.remove('sel');
+        if (k === q.a) b.classList.add('right');
+        else if (k === S.ans[i]) b.classList.add('wrong');
+      });
+      exp = '<div class="ans ' + (r.ok ? 'ok' : 'bad') + '">' + (r.ok ? 'Doğru.' : 'Doğru cevap: ' + LETTERS[q.a]) + '</div>' + fmt(q.exp);
+    } else if (q.type === 'fill') {
+      var inp = el.querySelector('input.blank');
+      inp.disabled = true;
+      inp.classList.add(r.ok ? 'ok' : 'bad');
+      exp = '<div class="ans ' + (r.ok ? 'ok' : 'bad') + '">' + (r.ok ? 'Doğru.' : 'Doğru cevap: <code>' + esc(q.ans[0]) + '</code>') + '</div>' + fmt(q.exp);
+    } else {
+      el.querySelectorAll('input.blank').forEach(function (inp2) {
+        var k = +inp2.dataset.b;
+        inp2.disabled = true;
+        inp2.classList.add(r.parts[k] ? 'ok' : 'bad');
+      });
+      exp = '<ol>' + q.exps.map(function (e, k) {
+        var mine = normAns(S.ans[i][k]);
+        return '<li><span class="' + (r.parts[k] ? 'mark-ok">✓' : 'mark-bad">✗') + '</span> ' + fmt(e) +
+          (!r.parts[k] ? ' <span class="hint">(senin cevabın: ' + (mine ? '<code>' + esc(mine) + '</code>' : 'boş') + ')</span>' : '') + '</li>';
+      }).join('') + '</ol>' + (q.note ? '<p style="margin:8px 0 0">' + fmt(q.note) + '</p>' : '');
+    }
+    var box = el.querySelector('.exp');
+    box.innerHTML = exp;
+    box.hidden = false;
+    var act = el.querySelector('.q-actions');
+    if (act) act.remove();
+  }
+
+  function checkQuestion(i) {
+    if (S.res[i]) return;
+    S.res[i] = grade(i);
+    showResult(i);
+    updateProgress();
+  }
+
+  function updateProgress() {
+    var el = document.getElementById('prog-text');
+    if (!el || !S) return;
+    if (S.t.mode === 'exam') {
+      var n = S.qs.filter(function (q, i) { return answered(i); }).length;
+      el.textContent = 'Cevaplanan: ' + n + ' / ' + S.qs.length;
+      return;
+    }
+    var done = S.res.filter(Boolean);
+    var ok = done.filter(function (r) { return r.ok; }).length;
+    var left = S.qs.length - done.length;
+    var html = '<span class="ok">Doğru ' + ok + '</span> · <span class="bad">Yanlış ' + (done.length - ok) + '</span> · Kalan ' + left;
+    if (left === 0) {
+      var earned = S.res.reduce(function (s, r) { return s + r.frac; }, 0);
+      var pct = Math.round(100 * earned / S.qs.length);
+      html = '<span class="done">Bitti: %' + pct + '</span> · <span class="ok">Doğru ' + ok + '</span> · <span class="bad">Yanlış ' + (done.length - ok) + '</span>';
+      if (!S.saved) { saveBest(S.t.id, pct); S.saved = true; }
+    }
+    el.innerHTML = html;
+  }
+
+  function submitExam() {
+    if (S.submitted) return;
+    var empty = S.qs.filter(function (q, i) { return !answered(i); }).length;
+    if (empty > 0 && !window.confirm(empty + ' soru boş. Yine de bitirilsin mi?')) return;
+    S.submitted = true;
+    S.qs.forEach(function (q, i) { S.res[i] = grade(i); showResult(i); });
+
+    var sec = { mc: [0, 0], fill: [0, 0], code: [0, 0] };
+    var wrong = [];
+    S.qs.forEach(function (q, i) {
+      var p = qPoints(q);
+      sec[q.type][0] += p * S.res[i].frac;
+      sec[q.type][1] += p;
+      if (!S.res[i].ok) wrong.push(i);
+    });
+    var total = Math.round(sec.mc[0] + sec.fill[0] + sec.code[0]);
+    saveBest(S.t.id, total);
+
+    var rows = ['mc', 'fill', 'code'].filter(function (k) { return sec[k][1] > 0; }).map(function (k) {
+      var got = Math.round(sec[k][0]), max = sec[k][1];
+      return '<div class="row"><span>' + SECTION_NAMES[k] + '</span><div class="bar"><span style="width:' + Math.round(100 * got / max) + '%"></span></div>' +
+        '<span class="v">' + got + ' / ' + max + '</span></div>';
+    }).join('');
+
+    var wl = wrong.length
+      ? '<div class="wrong-list">Gözden geçir: ' + wrong.map(function (i) { return '<a href="javascript:void 0" data-scroll="' + i + '">' + (i + 1) + '</a>'; }).join('') + '</div>'
+      : '<div class="wrong-list">Hepsi doğru.</div>';
+
+    document.getElementById('result').innerHTML = '<div class="result"><div class="score">' + total + ' <small>/ 100</small></div>' +
+      '<div class="rows">' + rows + '</div>' + wl +
+      '<div class="actions"><button type="button" class="btn" data-act="retry">' + (S.t.random ? 'Yeni rastgele vize' : 'Tekrar çöz') + '</button>' +
+      '<a class="btn ghost" href="#test">Testlere dön</a></div></div>';
+
+    var prog = document.getElementById('prog');
+    if (prog) prog.remove();
+    window.scrollTo(0, 0);
+  }
+
+  /* ---------- Olaylar ---------- */
+  app.addEventListener('click', function (e) {
+    var opt = e.target.closest('.opt');
+    if (opt && S) {
+      var i = +opt.dataset.q, k = +opt.dataset.o;
+      if (S.res[i]) return;
+      S.ans[i] = k;
+      if (S.t.mode === 'exam') {
+        document.querySelectorAll('#q-' + i + ' .opt').forEach(function (b) { b.classList.toggle('sel', +b.dataset.o === k); });
+        updateProgress();
+      } else {
+        checkQuestion(i);
+      }
+      return;
+    }
+    var act = e.target.closest('[data-act]');
+    if (act && S) {
+      var a = act.dataset.act;
+      if (a === 'check') checkQuestion(+act.dataset.q);
+      else if (a === 'submit') submitExam();
+      else if (a === 'retry') { renderTest(S.t.id); window.scrollTo(0, 0); }
+      return;
+    }
+    var sc = e.target.closest('[data-scroll]');
+    if (sc) {
+      e.preventDefault();
+      var q = document.getElementById('q-' + sc.dataset.scroll);
+      if (q) q.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+    // Tekrar sayfasında aynı bölüme tekrar tıklanınca da kaydır
+    var link = e.target.closest('a[href^="#tekrar/"]');
+    if (link && current === 'tekrar') {
+      e.preventDefault();
+      var href = link.getAttribute('href');
+      history.replaceState(null, '', href);
+      scrollToSection(href.split('/')[1]);
+    }
+  });
+
+  app.addEventListener('input', function (e) {
+    var el = e.target;
+    if (!el.matches('input.blank') || !S) return;
+    var i = +el.dataset.q, b = +el.dataset.b;
+    if (S.qs[i].type === 'code') S.ans[i][b] = el.value; else S.ans[i] = el.value;
+    el.style.width = Math.max(6, el.value.length + 2) + 'ch';
+    updateProgress();
+  });
+
+  app.addEventListener('keydown', function (e) {
+    var el = e.target;
+    if (e.key !== 'Enter' || !el.matches('input.blank') || !S) return;
+    e.preventDefault();
+    var i = +el.dataset.q;
+    var inputs = Array.prototype.slice.call(app.querySelectorAll('input.blank:not(:disabled)'));
+    var pos = inputs.indexOf(el);
+    if (S.t.mode === 'exam') {
+      if (inputs[pos + 1]) inputs[pos + 1].focus();
+      return;
+    }
+    var next = inputs[pos + 1];
+    if (S.qs[i].type === 'code' && next && +next.dataset.q === i) { next.focus(); return; }
+    checkQuestion(i);
+  });
+
+  /* ---------- Tema ---------- */
+  document.getElementById('themeBtn').addEventListener('click', function () {
+    var root = document.documentElement;
+    var cur = root.getAttribute('data-theme') ||
+      (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    var next = cur === 'dark' ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('phpvize-theme', next); } catch (e) { /* yok say */ }
+  });
+
+  /* ---------- Yönlendirme ---------- */
+  var current = null;
+  function route() {
+    var h = decodeURIComponent(location.hash.replace(/^#\/?/, ''));
+    var parts = h.split('/');
+    var page = parts[0], arg = parts[1];
+    if (page === 'test') {
+      setTab('test');
+      current = 'test';
+      if (arg) renderTest(arg); else { S = null; renderTestList(); }
+      window.scrollTo(0, 0);
+      return;
+    }
+    setTab('tekrar');
+    S = null;
+    if (current !== 'tekrar') {
+      renderReview();
+      current = 'tekrar';
+      window.scrollTo(0, 0);
+    }
+    if (arg) scrollToSection(arg);
+  }
+  window.addEventListener('hashchange', route);
+  route();
+})();
