@@ -3,10 +3,22 @@
    Slaytlar yalnızca bu konuları açıklamak için kullanıldı.
    Satır içi biçim: `kod`, **kalın**. */
 
+window.COURSE = {
+  id: 'php',
+  lang: 'php',
+  storeKey: 'phpvize-best',
+  reviewLead: 'Hocanın verdiği 14 konunun özeti. Ana kaynak çalışma soruları ve kitapçık; slaytlardan sadece bu konulara ait kısımlar alındı.',
+  hocaLink: { href: '#test/hoca', text: 'Hocanın 17 sorusunu çöz →' },
+  testLead: 'Vize: 1–10 test (50 p) · 11–16 boşluk doldurma (30 p) · 17 kod tamamlama (20 p).',
+  points: { mc: 5, fill: 5, code: 20 },
+  randomExam: { mc: 10, fill: 6, code: 1 },
+  randomDesc: 'Her açılışta farklı: tüm soru bankasından 10 test + 6 boşluk + 1 kod.'
+};
+
 window.EXAM_FORMAT = [
-  { range: 'Soru 1–10', what: 'Çoktan seçmeli test', pts: 50, per: '5 puan / soru' },
-  { range: 'Soru 11–16', what: 'Boşluk doldurma', pts: 30, per: '5 puan / soru' },
-  { range: 'Soru 17', what: 'Kod tamamlama', pts: 20, per: '4 boşluk × 5 puan' }
+  { range: 'Soru 1–10', what: 'Çoktan seçmeli test', big: '50', small: 'puan · 5 puan / soru' },
+  { range: 'Soru 11–16', what: 'Boşluk doldurma', big: '30', small: 'puan · 5 puan / soru' },
+  { range: 'Soru 17', what: 'Kod tamamlama', big: '20', small: 'puan · 4 boşluk × 5 puan' }
 ];
 
 window.TRAPS = [

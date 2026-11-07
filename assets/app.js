@@ -1,10 +1,13 @@
 (function () {
   'use strict';
 
+  // Ders ayarları (assets/content.js veya linux/content.js içinde tanımlanır)
+  var C = window.COURSE || {};
   var TOPICS = window.TOPICS;
-  var EXAMS = window.EXAMS;
+  var EXAMS = window.EXAMS || [];
   var TQ = window.TOPIC_QUESTIONS;
-  var EXTRA = window.EXTRA_CODE;
+  var EXTRA = window.EXTRA_CODE || [];
+  var POINTS = C.points || { mc: 5, fill: 5, code: 20 };
   var app = document.getElementById('app');
   var LETTERS = 'ABCDE';
 
@@ -36,7 +39,35 @@
   var KW = ['if', 'else', 'elseif', 'for', 'foreach', 'while', 'as', 'function', 'return', 'echo', 'true', 'false', 'null', 'exit'];
   var HL = /(\u0001\d+\u0001)|(<!--[\s\S]*?-->|\/\/[^\n]*|\/\*[\s\S]*?\*\/)|("(?:\\.|[^"\\])*"?|'(?:\\.|[^'\\\n])*'?)|(<\?php|\?>)|(<\/?[a-zA-Z][\w-]*)|(\$[A-Za-z_]\w*)|(\b\d+(?:\.\d+)?\b)|(\b[A-Za-z_]\w*\b)/g;
 
-  function hl(code) {
+  function hl(code) { return C.lang === 'sh' ? hlSh(code) : hlPhp(code); }
+
+  /* ---------- Kabuk (bash) renklendirme ---------- */
+  var SH = /(\u0001\d+\u0001)|("(?:\\.|[^"\\])*"?|'[^'\n]*'?)|(#[^\n]*)|(\$\{?[A-Za-z_]\w*\}?|\$[!?#@*0-9])|(>>|&&|\|\||[|&;<>])|(--?[A-Za-z][\w-]*(?:=[^\s|;&]*)?)|(%\d+|\+\d+|\b\d+\b)|([A-Za-z_~./][\w.\/~:+-]*)|(\n)/g;
+
+  function hlSh(code) {
+    var out = '', last = 0, m, cmd = true;
+    SH.lastIndex = 0;
+    while ((m = SH.exec(code))) {
+      var t = m[0], cls = null, prev = code.charAt(m.index - 1);
+      var atStart = m.index === 0 || /\s/.test(prev);
+      out += esc(code.slice(last, m.index));
+      last = SH.lastIndex;
+      if (m[1]) { out += t; continue; }
+      if (m[9]) { out += '\n'; cmd = true; continue; }
+      if (m[3] && !atStart) { out += '#'; last = SH.lastIndex = m.index + 1; continue; }
+      if (m[2]) cls = 's';
+      else if (m[3]) cls = 'c';
+      else if (m[4]) cls = 'v';
+      else if (m[5]) { cls = 'k'; if (t !== '>' && t !== '>>' && t !== '<') cmd = true; }
+      else if (m[6]) cls = atStart ? 'cn' : null;
+      else if (m[7]) cls = 'n';
+      else if (m[8]) { if (cmd) { cls = 'f'; cmd = t === 'sudo'; } }
+      out += cls ? '<span class="' + cls + '">' + esc(t) + '</span>' : esc(t);
+    }
+    return out + esc(code.slice(last));
+  }
+
+  function hlPhp(code) {
     var out = '', last = 0, m;
     HL.lastIndex = 0;
     while ((m = HL.exec(code))) {
@@ -65,7 +96,7 @@
   }
 
   /* ---------- Kayıtlı en iyi skorlar ---------- */
-  var BEST_KEY = 'phpvize-best';
+  var BEST_KEY = C.storeKey || 'phpvize-best';
   function getBest() { try { return JSON.parse(localStorage.getItem(BEST_KEY)) || {}; } catch (e) { return {}; } }
   function saveBest(id, pct) {
     var b = getBest();
@@ -73,12 +104,16 @@
   }
 
   /* ---------- Test tanımları ---------- */
+  // Aynı soru hem konu testinde hem sınavda olabilir; havuzda bir kez yer alır.
   function poolOf(type) {
-    var out = [];
-    Object.keys(TQ).forEach(function (tid) {
-      TQ[tid].forEach(function (q) { if (q.type === type) out.push(copy(q, { topic: tid })); });
-    });
-    EXAMS.forEach(function (e) { e.questions.forEach(function (q) { if (q.type === type) out.push(copy(q)); }); });
+    var seen = [], out = [];
+    function add(q, tid) {
+      if (q.type !== type || seen.indexOf(q) !== -1) return;
+      seen.push(q);
+      out.push(copy(q, tid ? { topic: tid } : null));
+    }
+    Object.keys(TQ).forEach(function (tid) { TQ[tid].forEach(function (q) { add(q, tid); }); });
+    EXAMS.forEach(function (e) { e.questions.forEach(function (q) { add(q); }); });
     return out;
   }
   function pickSpread(arr, n) {
@@ -88,22 +123,30 @@
     return picked.sort(function (a, b) { return topicIndex(a.topic) - topicIndex(b.topic); });
   }
   function codePool() {
-    return EXAMS.map(function (e) { return e.questions.filter(function (q) { return q.type === 'code'; })[0]; })
-      .concat(EXTRA).map(function (q) { return copy(q); });
+    var list = [];
+    EXAMS.forEach(function (e) { e.questions.forEach(function (q) { if (q.type === 'code') list.push(q); }); });
+    return list.concat(EXTRA).map(function (q) { return copy(q); });
   }
 
   var TESTS = [];
   EXAMS.forEach(function (e) {
+    var mode = e.mode || 'exam';
     TESTS.push({
-      id: e.id, group: 'vize', title: e.title, desc: e.desc, mode: 'exam', featured: e.featured, showTopic: true,
+      id: e.id, group: e.group || 'vize', title: e.title, desc: e.desc, mode: mode, featured: e.featured, showTopic: true,
       count: e.questions.length,
       build: function () { return e.questions.map(function (q) { return copy(q); }); }
     });
   });
+  var RX = C.randomExam || { mc: 10, fill: 6, code: 1 };
   TESTS.push({
-    id: 'rastgele', group: 'vize', title: 'Rastgele vize', desc: 'Her açılışta farklı: tüm soru bankasından 10 test + 6 boşluk + 1 kod.',
-    mode: 'exam', random: true, showTopic: true, count: 17,
-    build: function () { return pickSpread(poolOf('mc'), 10).concat(pickSpread(poolOf('fill'), 6), [shuffle(codePool())[0]]); }
+    id: 'rastgele', group: 'vize', title: 'Rastgele vize', desc: C.randomDesc || 'Her açılışta farklı sorular.',
+    mode: 'exam', random: true, showTopic: true, count: (RX.mc || 0) + (RX.fill || 0) + (RX.code || 0),
+    build: function () {
+      var qs = pickSpread(poolOf('mc'), RX.mc || 0);
+      if (RX.fill) qs = qs.concat(pickSpread(poolOf('fill'), RX.fill));
+      if (RX.code) qs = qs.concat(shuffle(codePool()).slice(0, RX.code));
+      return qs;
+    }
   });
   TOPICS.forEach(function (t, i) {
     TESTS.push({
@@ -111,10 +154,12 @@
       build: function () { return TQ[t.id].map(function (q) { return copy(q, { topic: t.id }); }); }
     });
   });
-  TESTS.push({
-    id: 'kod', group: 'ek', title: 'Kod tamamlama pratiği', desc: '17. soru tipi: foreach + if + toplam/sayaç kalıbı.',
-    mode: 'practice', showTopic: false, count: codePool().length, build: codePool
-  });
+  if (codePool().length) {
+    TESTS.push({
+      id: 'kod', group: 'ek', title: 'Kod tamamlama pratiği', desc: '17. soru tipi: foreach + if + toplam/sayaç kalıbı.',
+      mode: 'practice', showTopic: false, count: codePool().length, build: codePool
+    });
+  }
   TESTS.push({
     id: 'karisik', group: 'ek', title: 'Karışık 20 soru', desc: 'Konu testlerinden rastgele, anında kontrol.',
     mode: 'practice', random: true, showTopic: true, count: 20,
@@ -158,14 +203,16 @@
       TOPICS.map(function (t, i) { return '<a href="#tekrar/' + t.id + '" data-sec="' + t.id + '">' + (i + 1) + '. ' + esc(t.title) + '</a>'; }).join('') +
       '</nav>';
 
-    var format = '<section class="card" id="t-format"><h1>Genel tekrar</h1>' +
-      '<p class="lead">Hocanın verdiği 14 konunun özeti. Ana kaynak çalışma soruları ve kitapçık; slaytlardan sadece bu konulara ait kısımlar alındı.</p>' +
-      '<h2>Vize formatı</h2><div class="format-grid">' +
+    var format = '<section class="card" id="t-format"><h1>' + esc(C.reviewTitle || 'Genel tekrar') + '</h1>' +
+      '<p class="lead">' + fmt(C.reviewLead || '') + '</p>' +
+      '<h2>' + esc(C.formatTitle || 'Vize formatı') + '</h2><div class="format-grid">' +
       window.EXAM_FORMAT.map(function (f) {
         return '<div class="format-box"><div class="range">' + esc(f.range) + '</div><div class="what">' + esc(f.what) +
-          '</div><div class="pts">' + f.pts + ' <small>puan · ' + esc(f.per) + '</small></div></div>';
+          '</div><div class="pts">' + esc(f.big) + ' <small>' + esc(f.small) + '</small></div></div>';
       }).join('') + '</div>' +
-      '<p style="margin:14px 0 0"><a class="btn-link" href="#test/hoca">Hocanın 17 sorusunu çöz →</a></p></section>';
+      (C.formatNote ? '<p class="hint" style="margin:12px 0 0">' + fmt(C.formatNote) + '</p>' : '') +
+      (C.hocaLink ? '<p style="margin:14px 0 0"><a class="btn-link" href="' + C.hocaLink.href + '">' + esc(C.hocaLink.text) + '</a></p>' : '') +
+      '</section>';
 
     var traps = '<section class="card" id="t-tuzaklar"><h2>Kritik tuzaklar</h2>' +
       '<p class="topic-src" style="margin-top:4px">Çalışma sorularındaki yanlış şıkların neredeyse hepsi bunlardan biri.</p>' +
@@ -223,11 +270,13 @@
     }
     function group(title, key, note) {
       var list = TESTS.filter(function (t) { return t.group === key; });
+      if (!list.length) return '';
       return '<div class="group-title">' + title + '</div>' + (note ? '<p class="lead" style="margin:-4px 0 10px;font-size:.9rem">' + note + '</p>' : '') +
         '<div class="test-grid">' + list.map(card).join('') + '</div>';
     }
     app.innerHTML = '<h1>Test</h1>' +
-      '<p class="lead">Vize: 1–10 test (50 p) · 11–16 boşluk doldurma (30 p) · 17 kod tamamlama (20 p).</p>' +
+      '<p class="lead">' + fmt(C.testLead || '') + '</p>' +
+      group('Hocanın çalışma soruları', 'hoca', 'Cevap anahtarındaki açıklamalarla, her soru anında kontrol edilir.') +
       group('Vize formatında (100 puan)', 'vize', 'Cevaplar sonda topluca puanlanır, gerçek sınav gibi.') +
       group('Konu testleri', 'konu', 'Her soru anında kontrol edilir ve açıklaması gösterilir.') +
       group('Ek pratik', 'ek');
@@ -245,7 +294,7 @@
     return answers.some(function (a) { return cands.some(function (c) { return c !== '' && n(c) === n(a); }); });
   }
 
-  function qPoints(q) { return q.type === 'code' ? 20 : 5; }
+  function qPoints(q) { return POINTS[q.type] || 5; }
 
   function codeWithBlanks(q, i) {
     var src = q.type === 'fill'
@@ -264,6 +313,7 @@
     var top = '<div class="q-top"><span class="qn">' + (i + 1) + '.</span>' +
       (exam ? '<span class="badge">' + qPoints(q) + ' puan</span>' : '') +
       (S.t.showTopic && q.topic ? '<span class="badge">' + esc(topicTitle(q.topic)) + '</span>' : '') +
+      (q.src && S.t.id !== 'hoca' ? '<span class="badge">' + esc(q.src) + '</span>' : '') +
       '<span class="res"></span></div>';
     var body = '';
     if (q.type === 'code' && q.title) body += '<div class="q-text"><strong>' + esc(q.title) + '</strong></div>';
@@ -350,7 +400,7 @@
     var res = el.querySelector('.res');
     if (q.type === 'code') {
       var n = r.parts.filter(Boolean).length;
-      res.textContent = n + '/' + r.parts.length + ' boşluk doğru' + (S.t.mode === 'exam' ? ' · ' + Math.round(20 * r.frac) + ' puan' : '');
+      res.textContent = n + '/' + r.parts.length + ' boşluk doğru' + (S.t.mode === 'exam' ? ' · ' + Math.round(qPoints(q) * r.frac) + ' puan' : '');
     } else {
       res.textContent = r.ok ? '✓ Doğru' : (r.empty ? '— Boş' : '✗ Yanlış');
     }

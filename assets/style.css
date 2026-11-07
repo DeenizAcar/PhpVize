@@ -105,12 +105,23 @@ code {
   align-items: center;
   gap: 24px;
 }
-.brand {
-  font-weight: 700;
-  color: var(--text);
-  letter-spacing: -.01em;
+.courses {
+  display: flex;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 2px;
+  flex: none;
 }
-.brand:hover { text-decoration: none; }
+.courses a {
+  padding: 3px 12px;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: .9rem;
+  color: var(--muted);
+}
+.courses a:hover { color: var(--text); text-decoration: none; }
+.courses a.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 2px rgba(0, 0, 0, .08); }
 .tabs { display: flex; gap: 4px; height: 100%; }
 .tabs a {
   display: flex;
@@ -554,7 +565,7 @@ input.blank:disabled { opacity: 1; }
 
 /* ---------- Mobil ---------- */
 @media (max-width: 900px) {
-  .review { grid-template-columns: 1fr; }
+  .review { grid-template-columns: minmax(0, 1fr); }
   .toc { display: none; }
   .chips {
     display: flex;
@@ -584,8 +595,10 @@ input.blank:disabled { opacity: 1; }
   .container { padding: 16px 14px 80px; }
   .card { padding: 16px; }
   .format-grid { grid-template-columns: 1fr; }
-  .topbar-inner { padding: 0 14px; gap: 10px; }
-  .tabs a { padding: 0 10px; }
+  .topbar-inner { padding: 0 12px; gap: 8px; }
+  .tabs { gap: 0; }
+  .tabs a { padding: 0 8px; font-size: .92rem; }
+  .courses a { padding: 3px 8px; font-size: .85rem; }
   pre.code { font-size: 13px; padding: 10px 12px; }
   .q { padding: 14px; }
   .result .row { grid-template-columns: 1fr 70px; }
