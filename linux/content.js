@@ -348,3 +348,19 @@ MemAvailable:    1532100 kB` },
     ]
   }
 ];
+
+/* Yanlış cevapta gösterilen konu kuralı */
+window.TOPIC_RULES = {
+  yardim: '`help` Bash yerleşikleri · `man` kılavuz sayfası (q ile çık) · `whatis` tek satır açıklama · `ls --help` boşluksuz. `echo PATH` kelimeyi, `echo "$PATH"` değeri yazar.',
+  sistem: '`hostname` makine adı · `whoami` etkin kullanıcı · `uname -a` çekirdek · `lsb_release -a` dağıtım · `uptime` açık kalma süresi · `date` saat · `time komut` süre ölçer · `cal` takvim · `last` oturumlar.',
+  kaynak: '`df` dosya sistemi alanı · `du` dosya/dizin kullanımı (`-s` toplam, `-h` okunabilir) · `free` RAM ve takas. `--max-depth=1` dizin derinliğini sınırlar.',
+  surec: '`ps` anlık liste · `ps aux` geniş liste · `top` canlı ekran · `pstree` ağaç · `pmap PID` bellek haritası · `fuser dosya` dosyayı kullanan PID’ler.',
+  is: '`&` arka planda başlatır · Ctrl+Z duraklatır · `jobs` kabuğun işleri · `bg %1` arka planda sürdürür · `fg %2` ön plana alır · `kill PID` · `killall ad` · `pkill desen`.',
+  dizin: '`pwd` tam yol · `cd ad` göreli yol · `cd ..` üst dizin · `mkdir` dizin oluşturur · `rmdir` yalnızca boş dizin siler · `rm` dosya siler.',
+  dosya: '`touch` yoksa boş dosya oluşturur, varsa sadece zamanı günceller · `>` üzerine yazar · `>>` sona ekler · `cat >` girişi Ctrl+D bitirir · `tee dosya` hem dosya hem ekran.',
+  metin: '`head -n 5` ilk 5, `tail -n 5` son 5 (varsayılan 10) · `grep` eşleşen satırlar · `sort` sıralar · `nl` numaralar · `wc` satır-kelime-bayt · `more`/`less` sayfalar (q ile çık).',
+  kopya: '`cp` kopyalar, kaynak kalır · `mv` taşır/yeniden adlandırır · `file` türü içerikten bulur · `find . -name` canlı arama · `locate` veritabanı · `gzip` → .gz, `gunzip` açar.',
+  proc: '/proc: `version` çekirdek · `cpuinfo` işlemci · `meminfo` bellek · `modules` modüller · `filesystems` desteklenen · `mounts` bağlı · `interrupts` kesmeler. `|` çıktıyı sonraki komuta aktarır.',
+  ag: '`ip address` arayüzler/IP · `ifconfig` eski araç · `which` program yolu · `whereis` ikili+kaynak+kılavuz · `/etc/hosts` yerel adlar · `/etc/resolv.conf` DNS.',
+  kapatma: 'shutdown `-h` kapat · `-r` yeniden başlat · `-c` iptal · `now` hemen · `+10` 10 dakika sonra. `reboot` yeniden başlatır. `systemctl restart nginx` yalnızca hizmeti yeniden başlatır.'
+};

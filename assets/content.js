@@ -518,3 +518,21 @@ echo $free - 2;`, out: '16' },
     ]
   }
 ];
+
+/* Yanlış cevapta gösterilen konu kuralı (genel tekrara gitmeden çözebilmek için) */
+window.TOPIC_RULES = {
+  degiskenler: 'Değişken `$` ile başlar, büyük/küçük harf duyarlıdır. Tırnak içindeki her değer metindir: `"14"` string, `14` int. `===` türü de karşılaştırır.',
+  atama: '`$x - 3;` hesaplar ama **saklamaz**. Değişken yalnızca `=`, `+=`, `-=`, `++`, `--` ile değişir. Önce `*` `/`, sonra `+` `-`.',
+  yazdirma: 'Metinler **nokta** ile birleşir (`"5" . "3"` → 53). Alt satır için `<br>` gerekir. Döngü dışındaki echo bir kez çalışır.',
+  karsilastirma: '`==` yalnızca değere bakar (`"8" == 8` doğru), `===` türü de ister. `<` sınırı dahil etmez, `<=` eder. Tek `=` atamadır. Bağımsız if’lerin her biri ayrı sınanır.',
+  mantiksal: '`&&` iki koşulun da, `||` en az birinin doğru olmasını ister. Aralık İÇİ → `&&`, aralık DIŞI → `||`. `!` tersine çevirir.',
+  kosullar: 'if–elseif zincirinde yukarıdan aşağı **ilk doğru** koşulun dalı çalışır, gerisi denenmez. Geniş koşul önce yazılırsa dar koşul hiç çalışmaz: yüksek eşiği önce sına.',
+  donguler: 'Turları tablo halinde yaz. Koşul **tur başında** kontrol edilir; gövdedeki sıra (önce azalt sonra yaz gibi) çıktıyı belirler. Sınırı aşan son değer de yazılabilir.',
+  sayac: 'Sayaç/toplam döngüden **önce** 0 yapılır. Koşullu sayılacaksa `++`/`+=` satırı if’in **süslü parantezleri içinde** olmalı. `=` toplamaz, üzerine yazar.',
+  diziler: 'İndeks 0’dan başlar. Kayıt listesinde önce kayıt indeksi, sonra alan anahtarı: `$rooms[1]["name"]`. Anahtarlar harf duyarlıdır.',
+  foreach: '`foreach ($liste as $eleman)`: her turda sıradaki eleman gelir. Döngü içinde listeyi değil o turdaki elemanı kullan.',
+  get: 'Adres `dosya.php?anahtar=değer`. PHP input’un **name** değeriyle okur (`$_GET["name"]`); id PHP’ye gitmez. `&` alanları ayırır.',
+  girdi: '`$x = $_GET["a"] ?? "";` alan gelmezse boş metin verir. Geçerlilik ayrı bir if ile denetlenir; htmlspecialchars doğrulama yapmaz.',
+  fonksiyonlar: '`return` değeri çağırana verir, ekrana yazmaz. Fonksiyon içindeki `echo` **çağrıldığı anda** yazar ve fonksiyon değer döndürmez (null). Tanım çağrılmadan çalışmaz.',
+  html: 'htmlspecialchars `< > & " \'` karakterlerini kodlar: kaynakta `&lt;` `&amp;` olur, kullanıcı ise orijinal karakterleri metin olarak görür; etiket çalışmaz.'
+};

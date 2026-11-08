@@ -512,6 +512,14 @@ input.blank:disabled { opacity: 1; }
 .exp .ans.bad { color: var(--bad); }
 .exp ol { margin: 6px 0 0; padding-left: 20px; }
 .exp li { margin: 3px 0; }
+.exp .why, .exp .rule {
+  margin-top: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border-left: 3px solid;
+}
+.exp .why { background: var(--bad-soft); border-color: var(--bad); }
+.exp .rule { background: var(--accent-soft); border-color: var(--accent); }
 .exp .mark-ok { color: var(--ok); font-weight: 700; }
 .exp .mark-bad { color: var(--bad); font-weight: 700; }
 

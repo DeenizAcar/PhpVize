@@ -116,8 +116,22 @@
     EXAMS.forEach(function (e) { e.questions.forEach(function (q) { add(q); }); });
     return out;
   }
+  // Rastgele testlerde az görülen sorular öne alınır (tarayıcıda sayılır)
+  var SEEN_KEY = BEST_KEY + '-seen';
+  function sig(q) { return (q.q + '|' + (q.code || '')).slice(0, 160); }
+  function getSeen() { try { return JSON.parse(localStorage.getItem(SEEN_KEY)) || {}; } catch (e) { return {}; } }
+  function markSeen(qs) {
+    var s = getSeen();
+    qs.forEach(function (q) { s[sig(q)] = (s[sig(q)] || 0) + 1; });
+    try { localStorage.setItem(SEEN_KEY, JSON.stringify(s)); } catch (e) { /* yok say */ }
+  }
+  function freshFirst(arr) {
+    var s = getSeen();
+    return shuffle(arr.slice()).sort(function (a, b) { return (s[sig(a)] || 0) - (s[sig(b)] || 0); });
+  }
+
   function pickSpread(arr, n) {
-    var sh = shuffle(arr.slice()), used = {}, picked = [];
+    var sh = freshFirst(arr), used = {}, picked = [];
     sh.forEach(function (q) { if (picked.length < n && !used[q.topic]) { picked.push(q); used[q.topic] = 1; } });
     sh.forEach(function (q) { if (picked.length < n && picked.indexOf(q) === -1) picked.push(q); });
     return picked.sort(function (a, b) { return topicIndex(a.topic) - topicIndex(b.topic); });
@@ -144,7 +158,7 @@
     build: function () {
       var qs = pickSpread(poolOf('mc'), RX.mc || 0);
       if (RX.fill) qs = qs.concat(pickSpread(poolOf('fill'), RX.fill));
-      if (RX.code) qs = qs.concat(shuffle(codePool()).slice(0, RX.code));
+      if (RX.code) qs = qs.concat(freshFirst(codePool()).slice(0, RX.code));
       return qs;
     }
   });
@@ -163,7 +177,7 @@
   TESTS.push({
     id: 'karisik', group: 'ek', title: 'Karışık 20 soru', desc: 'Konu testlerinden rastgele, anında kontrol.',
     mode: 'practice', random: true, showTopic: true, count: 20,
-    build: function () { return shuffle(poolOf('mc').concat(poolOf('fill'))).slice(0, 20); }
+    build: function () { return freshFirst(poolOf('mc').concat(poolOf('fill'))).slice(0, 20); }
   });
 
   /* ---------- Sekmeler ---------- */
@@ -343,6 +357,7 @@
       return;
     }
     var qs = t.build();
+    if (t.random) markSeen(qs);
     S = {
       t: t, qs: qs,
       ans: qs.map(function (q) { return q.type === 'code' ? q.blanks.map(function () { return ''; }) : (q.type === 'fill' ? '' : null); }),
@@ -416,11 +431,19 @@
         else if (k === S.ans[i]) b.classList.add('wrong');
       });
       exp = '<div class="ans ' + (r.ok ? 'ok' : 'bad') + '">' + (r.ok ? 'Doğru.' : 'Doğru cevap: ' + LETTERS[q.a]) + '</div>' + fmt(q.exp);
+      var ch = S.ans[i];
+      if (!r.ok && ch !== null && q.why && q.why[ch]) {
+        exp += '<div class="why"><b>Senin cevabın (' + LETTERS[ch] + '):</b> ' + fmt(q.why[ch]) + '</div>';
+      }
     } else if (q.type === 'fill') {
       var inp = el.querySelector('input.blank');
       inp.disabled = true;
       inp.classList.add(r.ok ? 'ok' : 'bad');
       exp = '<div class="ans ' + (r.ok ? 'ok' : 'bad') + '">' + (r.ok ? 'Doğru.' : 'Doğru cevap: <code>' + esc(q.ans[0]) + '</code>') + '</div>' + fmt(q.exp);
+      var typed = normAns(S.ans[i]);
+      if (!r.ok && q.whyFill && q.whyFill[typed]) {
+        exp += '<div class="why"><b>Senin cevabın (<code>' + esc(typed) + '</code>):</b> ' + fmt(q.whyFill[typed]) + '</div>';
+      }
     } else {
       el.querySelectorAll('input.blank').forEach(function (inp2) {
         var k = +inp2.dataset.b;
@@ -432,6 +455,10 @@
         return '<li><span class="' + (r.parts[k] ? 'mark-ok">✓' : 'mark-bad">✗') + '</span> ' + fmt(e) +
           (!r.parts[k] ? ' <span class="hint">(senin cevabın: ' + (mine ? '<code>' + esc(mine) + '</code>' : 'boş') + ')</span>' : '') + '</li>';
       }).join('') + '</ol>' + (q.note ? '<p style="margin:8px 0 0">' + fmt(q.note) + '</p>' : '');
+    }
+    var rules = window.TOPIC_RULES || {};
+    if (!r.ok && q.topic && rules[q.topic]) {
+      exp += '<div class="rule"><b>Kural · ' + esc(topicTitle(q.topic)) + ':</b> ' + fmt(rules[q.topic]) + '</div>';
     }
     var box = el.querySelector('.exp');
     box.innerHTML = exp;
