@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PHP Vize Çalışma · İnternet Programcılığı II</title>
+  <meta name="description" content="İnternet Programcılığı II (PHP) vize tekrarı ve testleri.">
+  <link rel="stylesheet" href="assets/style.css">
+  <script>
+    (function () {
+      var t = localStorage.getItem('phpvize-theme');
+      if (t) document.documentElement.setAttribute('data-theme', t);
+    })();
+  </script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <nav class="courses" aria-label="Dersler">
+        <a href="php.html" class="active" aria-current="page">PHP</a>
+        <a href="linux/">Linux</a>
+      </nav>
+      <nav class="tabs" aria-label="Bölümler">
+        <a href="#tekrar" data-tab="tekrar">Genel Tekrar</a>
+        <a href="#test" data-tab="test">Test</a>
+      </nav>
+      <button class="theme-btn" id="themeBtn" type="button" aria-label="Tema değiştir" title="Açık / koyu tema">◐</button>
+    </div>
+  </header>
+
+  <main id="app" class="container"></main>
+
+  <script src="assets/content.js"></script>
+  <script src="assets/questions.js"></script>
+  <script src="assets/questions-ge1.js"></script>
+  <script src="assets/app.js"></script>
+</body>
+</html>

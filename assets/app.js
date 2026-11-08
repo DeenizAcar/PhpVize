@@ -408,26 +408,65 @@
     return { ok: n === parts.length, parts: parts, frac: n / parts.length, empty: !answered(i) };
   }
 
-  // Soruda geçen komutların İngilizce açılımları (COURSE'a göre window.CMD_NAMES varsa).
+  // Soruda geçen komutların İngilizce açılımları, seçenekleri ve sembolleri
+  // (window.CMD_NAMES / CMD_OPTS / SH_SYMBOLS varsa; şu an sadece Linux).
   function cmdNamesBox(q, chosen) {
     var names = window.CMD_NAMES;
     if (!names) return '';
-    var texts = [q.code || ''];
+    var opts = window.CMD_OPTS || {}, syms = window.SH_SYMBOLS || {};
+    var has = function (o, k) { return o && Object.prototype.hasOwnProperty.call(o, k); };
+    var texts = [];
+    String(q.code || '').split('\n').forEach(function (l) { texts.push(l.replace(/#.*$/, '')); });
     var spans = [q.q, q.exp];
     if (q.type === 'mc') {
       spans.push(q.opts[q.a]);
-      if (chosen !== null && chosen !== q.a) { spans.push(q.opts[chosen]); if (q.why) spans.push(q.why[chosen]); }
+      if (chosen !== null && chosen !== undefined && chosen !== q.a) { spans.push(q.opts[chosen]); if (q.why) spans.push(q.why[chosen]); }
     }
-    spans.forEach(function (s) { (String(s || '').match(/`[^`]*`/g) || []).forEach(function (m) { texts.push(m); }); });
-    var seen = [];
-    texts.join(' ').replace(/[A-Za-z0-9_.]+/g, function (w) {
-      if (Object.prototype.hasOwnProperty.call(names, w) && seen.indexOf(w) < 0) seen.push(w);
-      return w;
+    spans.forEach(function (s) { (String(s || '').match(/`[^`]*`/g) || []).forEach(function (m) { texts.push(m.slice(1, -1)); }); });
+
+    var items = [], keys = {};
+    function add(key, html) { if (!keys[key]) { keys[key] = 1; items.push(html); } }
+    function sym(k) { if (has(syms, k)) add('s:' + k, fmt(syms[k])); }
+    function opt(cmd, t) {
+      var d = (has(opts, cmd) && has(opts[cmd], t)) ? opts[cmd][t] : (has(opts['*'], t) ? opts['*'][t] : null);
+      if (d) { add('o:' + cmd + t, '<code>' + esc(cmd + ' ' + t) + '</code> → <code>' + esc(t) + '</code> = ' + fmt(d)); return true; }
+      return false;
+    }
+
+    texts.forEach(function (line) {
+      var cmd = null, fresh = true;
+      line.split(/\s+/).forEach(function (t) {
+        if (!t) return;
+        if (t === '|' || t === ';' || t === '&&' || t === '&') { sym(t); cmd = null; fresh = true; return; }
+        if (/^(>>|>|<)/.test(t)) { sym(t.match(/^(>>|>|<)/)[1]); return; }
+        if (/['"]/.test(t)) sym('quote');
+        var w = t.replace(/^['"]+|['";:,]+$/g, '');
+        if (has(names, w) && (fresh || cmd === 'sudo')) {
+          add('c:' + w, '<code>' + esc(w) + '</code> = ' + fmt(names[w]));
+          cmd = w; fresh = false; return;
+        }
+        fresh = false;
+        if (cmd && (w.charAt(0) === '-' || (has(opts, cmd) && has(opts[cmd], w)))) {
+          if (!opt(cmd, w) && /^-[a-zA-Z]{2,}$/.test(w)) w.slice(1).split('').forEach(function (c) { opt(cmd, '-' + c); });
+          return;
+        }
+        if (w === '.' || w === '..' || w === '~') { sym(w); return; }
+        if (/^\.\//.test(w)) sym('.');
+        if (/^\.\.\//.test(w)) sym('..');
+        if (/^~/.test(w)) sym('~');
+        if (/^\//.test(w)) sym('/');
+        if (/^%\d/.test(w)) sym('%N');
+        if (/^\+\d/.test(w)) sym('+N');
+        if (/\$[A-Za-z_]/.test(w)) sym('$');
+        if (/\*/.test(w)) sym('*');
+        // /proc/cpuinfo gibi yollardaki bilinen adlar
+        w.split(/[^A-Za-z0-9_.]+/).forEach(function (p) {
+          if (p && has(names, p) && /\//.test(w)) add('c:' + p, '<code>' + esc(p) + '</code> = ' + fmt(names[p]));
+        });
+      });
     });
-    if (!seen.length) return '';
-    return '<div class="names"><b>Açılımı:</b><ul>' + seen.slice(0, 6).map(function (w) {
-      return '<li><code>' + esc(w) + '</code> = ' + fmt(names[w]) + '</li>';
-    }).join('') + '</ul></div>';
+    if (!items.length) return '';
+    return '<div class="names"><b>Açılımı:</b><ul>' + items.slice(0, 10).map(function (h) { return '<li>' + h + '</li>'; }).join('') + '</ul></div>';
   }
 
   function showResult(i) {
@@ -478,7 +517,7 @@
           (!r.parts[k] ? ' <span class="hint">(senin cevabın: ' + (mine ? '<code>' + esc(mine) + '</code>' : 'boş') + ')</span>' : '') + '</li>';
       }).join('') + '</ol>' + (q.note ? '<p style="margin:8px 0 0">' + fmt(q.note) + '</p>' : '');
     }
-    if (!r.ok) exp += cmdNamesBox(q, q.type === 'mc' ? S.ans[i] : null);
+    exp += cmdNamesBox(q, q.type === 'mc' ? S.ans[i] : null);
     var rules = window.TOPIC_RULES || {};
     if (!r.ok && q.topic && rules[q.topic]) {
       exp += '<div class="rule"><b>Kural · ' + esc(topicTitle(q.topic)) + ':</b> ' + fmt(rules[q.topic]) + '</div>';
