@@ -519,6 +519,9 @@ input.blank:disabled { opacity: 1; }
   border-left: 3px solid;
 }
 .exp .why { background: var(--bad-soft); border-color: var(--bad); }
+.exp .names { margin-top: 8px; padding: 8px 12px; border-radius: 6px; border-left: 3px solid var(--ok); background: var(--ok-soft, transparent); }
+.exp .names ul { margin: 4px 0 0; padding-left: 18px; }
+.exp .names li { margin: 2px 0; }
 .exp .rule { background: var(--accent-soft); border-color: var(--accent); }
 .exp .mark-ok { color: var(--ok); font-weight: 700; }
 .exp .mark-bad { color: var(--bad); font-weight: 700; }

@@ -408,6 +408,28 @@
     return { ok: n === parts.length, parts: parts, frac: n / parts.length, empty: !answered(i) };
   }
 
+  // Soruda geçen komutların İngilizce açılımları (COURSE'a göre window.CMD_NAMES varsa).
+  function cmdNamesBox(q, chosen) {
+    var names = window.CMD_NAMES;
+    if (!names) return '';
+    var texts = [q.code || ''];
+    var spans = [q.q, q.exp];
+    if (q.type === 'mc') {
+      spans.push(q.opts[q.a]);
+      if (chosen !== null && chosen !== q.a) { spans.push(q.opts[chosen]); if (q.why) spans.push(q.why[chosen]); }
+    }
+    spans.forEach(function (s) { (String(s || '').match(/`[^`]*`/g) || []).forEach(function (m) { texts.push(m); }); });
+    var seen = [];
+    texts.join(' ').replace(/[A-Za-z0-9_.]+/g, function (w) {
+      if (Object.prototype.hasOwnProperty.call(names, w) && seen.indexOf(w) < 0) seen.push(w);
+      return w;
+    });
+    if (!seen.length) return '';
+    return '<div class="names"><b>Açılımı:</b><ul>' + seen.slice(0, 6).map(function (w) {
+      return '<li><code>' + esc(w) + '</code> = ' + fmt(names[w]) + '</li>';
+    }).join('') + '</ul></div>';
+  }
+
   function showResult(i) {
     var q = S.qs[i], r = S.res[i], el = document.getElementById('q-' + i);
     if (!el) return;
@@ -456,6 +478,7 @@
           (!r.parts[k] ? ' <span class="hint">(senin cevabın: ' + (mine ? '<code>' + esc(mine) + '</code>' : 'boş') + ')</span>' : '') + '</li>';
       }).join('') + '</ol>' + (q.note ? '<p style="margin:8px 0 0">' + fmt(q.note) + '</p>' : '');
     }
+    if (!r.ok) exp += cmdNamesBox(q, q.type === 'mc' ? S.ans[i] : null);
     var rules = window.TOPIC_RULES || {};
     if (!r.ok && q.topic && rules[q.topic]) {
       exp += '<div class="rule"><b>Kural · ' + esc(topicTitle(q.topic)) + ':</b> ' + fmt(rules[q.topic]) + '</div>';
