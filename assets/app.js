@@ -24,6 +24,16 @@
       return esc(seg).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
     }).join('');
   }
+  // Çok satırlı metin: "- " ile başlayan satırlar liste, boş satır paragraf
+  function fmtBlock(s) {
+    var out = '', list = false;
+    String(s).split(/\r?\n/).forEach(function (line) {
+      if (/^- /.test(line)) { if (!list) { out += '<ul>'; list = true; } out += '<li>' + fmt(line.slice(2)) + '</li>'; return; }
+      if (list) { out += '</ul>'; list = false; }
+      if (line.trim()) out += '<p>' + fmt(line) + '</p>';
+    });
+    return out + (list ? '</ul>' : '');
+  }
   function shuffle(a) {
     for (var i = a.length - 1; i > 0; i--) {
       var j = Math.floor(Math.random() * (i + 1));
@@ -153,12 +163,16 @@
   });
   var RX = C.randomExam || { mc: 10, fill: 6, code: 1 };
   TESTS.push({
-    id: 'rastgele', group: 'vize', title: 'Rastgele vize', desc: C.randomDesc || 'Her açılışta farklı sorular.',
-    mode: 'exam', random: true, showTopic: true, count: (RX.mc || 0) + (RX.fill || 0) + (RX.code || 0),
+    id: 'rastgele', group: 'vize', title: C.randomTitle || 'Rastgele vize', desc: C.randomDesc || 'Her açılışta farklı sorular.',
+    mode: 'exam', random: true, showTopic: true, count: (RX.mc || 0) + (RX.fill || 0) + (RX.code || 0) + (RX.open || 0),
     build: function () {
-      var qs = pickSpread(poolOf('mc'), RX.mc || 0);
+      // RX.openMax varsa yazma sayısı open..openMax arasında değişir, toplam aynı kalır
+      var nOpen = RX.open || 0;
+      if (RX.openMax) nOpen += Math.floor(Math.random() * (RX.openMax - nOpen + 1));
+      var qs = pickSpread(poolOf('mc'), (RX.mc || 0) - (nOpen - (RX.open || 0)));
       if (RX.fill) qs = qs.concat(pickSpread(poolOf('fill'), RX.fill));
       if (RX.code) qs = qs.concat(freshFirst(codePool()).slice(0, RX.code));
+      if (nOpen) qs = qs.concat(pickSpread(poolOf('open'), nOpen));
       return qs;
     }
   });
@@ -177,7 +191,7 @@
   TESTS.push({
     id: 'karisik', group: 'ek', title: 'Karışık 20 soru', desc: 'Konu testlerinden rastgele, anında kontrol.',
     mode: 'practice', random: true, showTopic: true, count: 20,
-    build: function () { return freshFirst(poolOf('mc').concat(poolOf('fill'))).slice(0, 20); }
+    build: function () { return freshFirst(poolOf('mc').concat(poolOf('fill'), poolOf('open'))).slice(0, 20); }
   });
 
   /* ---------- Sekmeler ---------- */
@@ -290,7 +304,7 @@
     }
     app.innerHTML = '<h1>Test</h1>' +
       '<p class="lead">' + fmt(C.testLead || '') + '</p>' +
-      group('Hocanın çalışma soruları', 'hoca', 'Cevap anahtarındaki açıklamalarla, her soru anında kontrol edilir.') +
+      group('Hocanın çalışma soruları', 'hoca', C.hocaNote || 'Cevap anahtarındaki açıklamalarla, her soru anında kontrol edilir.') +
       group('Vize formatında (100 puan)', 'vize', 'Cevaplar sonda topluca puanlanır, gerçek sınav gibi.') +
       group('Konu testleri', 'konu', 'Her soru anında kontrol edilir ve açıklaması gösterilir.') +
       group('Ek pratik', 'ek');
@@ -337,6 +351,13 @@
       body += '<ul class="opts">' + q.opts.map(function (o, k) {
         return '<li><button type="button" class="opt" data-q="' + i + '" data-o="' + k + '"><span class="L">' + LETTERS[k] + '</span><span>' + fmt(o) + '</span></button></li>';
       }).join('') + '</ul>';
+    } else if (q.type === 'open') {
+      body += '<textarea class="open-in" data-q="' + i + '" rows="3" placeholder="Cevabını yaz (isteğe bağlı), sonra cevaba bak."></textarea>' +
+        '<div class="q-actions"><button type="button" class="btn ghost" data-act="reveal" data-q="' + i + '">Cevabı göster</button></div>' +
+        '<div class="open-model" hidden><div class="ans ok">Model cevap</div>' + fmtBlock(q.model) +
+        '<div class="self"><span>Kendini puanla:</span>' +
+        '<button type="button" class="btn" data-act="self" data-v="1" data-q="' + i + '">Bildim</button>' +
+        '<button type="button" class="btn ghost" data-act="self" data-v="0" data-q="' + i + '">Bilemedim</button></div></div>';
     } else {
       body += codeWithBlanks(q, i);
       if (!exam) {
@@ -348,7 +369,7 @@
     return '<div class="q" id="q-' + i + '">' + top + body + '</div>';
   }
 
-  var SECTION_NAMES = { mc: 'Test', fill: 'Boşluk doldurma', code: 'Kod tamamlama' };
+  var SECTION_NAMES = { mc: 'Test', fill: 'Boşluk doldurma', code: 'Kod tamamlama', open: 'Yazma' };
 
   function renderTest(id) {
     var t = TESTS.filter(function (x) { return x.id === id; })[0];
@@ -396,6 +417,7 @@
     var q = S.qs[i], a = S.ans[i];
     if (q.type === 'mc') return a !== null;
     if (q.type === 'fill') return normAns(a) !== '';
+    if (q.type === 'open') return a !== null;
     return a.some(function (x) { return normAns(x) !== ''; });
   }
 
@@ -403,6 +425,7 @@
     var q = S.qs[i], a = S.ans[i];
     if (q.type === 'mc') { var ok = a === q.a; return { ok: ok, frac: ok ? 1 : 0, empty: a === null }; }
     if (q.type === 'fill') { var ok2 = matchAns(a, q.ans, q.cs); return { ok: ok2, frac: ok2 ? 1 : 0, empty: normAns(a) === '' }; }
+    if (q.type === 'open') return { ok: a === true, frac: a === true ? 1 : 0, empty: a === null };
     var parts = q.blanks.map(function (b, k) { return matchAns(a[k], b.ans, b.cs); });
     var n = parts.filter(Boolean).length;
     return { ok: n === parts.length, parts: parts, frac: n / parts.length, empty: !answered(i) };
@@ -479,6 +502,7 @@
       res.textContent = n + '/' + r.parts.length + ' boşluk doğru' + (S.t.mode === 'exam' ? ' · ' + Math.round(qPoints(q) * r.frac) + ' puan' : '');
     } else {
       res.textContent = r.ok ? '✓ Doğru' : (r.empty ? '— Boş' : '✗ Yanlış');
+      if (q.type === 'open' && !r.empty) res.textContent = r.ok ? '✓ Bildim' : '✗ Bilemedim';
     }
     res.className = 'res ' + (r.ok ? 'ok' : 'bad');
 
@@ -505,6 +529,12 @@
       if (!r.ok && q.whyFill && q.whyFill[typed]) {
         exp += '<div class="why"><b>Senin cevabın (<code>' + esc(typed) + '</code>):</b> ' + fmt(q.whyFill[typed]) + '</div>';
       }
+    } else if (q.type === 'open') {
+      var ta = el.querySelector('.open-in');
+      if (ta) ta.disabled = true;
+      var om = el.querySelector('.open-model');
+      if (om) om.remove();
+      exp = '<div class="ans ' + (r.ok ? 'ok' : 'bad') + '">' + (r.empty ? 'Puanlanmadı. Model cevap:' : (r.ok ? 'Bildin.' : 'Bilemedin. Model cevap:')) + '</div>' + fmtBlock(q.model);
     } else {
       el.querySelectorAll('input.blank').forEach(function (inp2) {
         var k = +inp2.dataset.b;
@@ -564,7 +594,7 @@
     S.submitted = true;
     S.qs.forEach(function (q, i) { S.res[i] = grade(i); showResult(i); });
 
-    var sec = { mc: [0, 0], fill: [0, 0], code: [0, 0] };
+    var sec = { mc: [0, 0], fill: [0, 0], code: [0, 0], open: [0, 0] };
     var wrong = [];
     S.qs.forEach(function (q, i) {
       var p = qPoints(q);
@@ -572,10 +602,10 @@
       sec[q.type][1] += p;
       if (!S.res[i].ok) wrong.push(i);
     });
-    var total = Math.round(sec.mc[0] + sec.fill[0] + sec.code[0]);
+    var total = Math.round(sec.mc[0] + sec.fill[0] + sec.code[0] + sec.open[0]);
     saveBest(S.t.id, total);
 
-    var rows = ['mc', 'fill', 'code'].filter(function (k) { return sec[k][1] > 0; }).map(function (k) {
+    var rows = ['mc', 'fill', 'code', 'open'].filter(function (k) { return sec[k][1] > 0; }).map(function (k) {
       var got = Math.round(sec[k][0]), max = sec[k][1];
       return '<div class="row"><span>' + SECTION_NAMES[k] + '</span><div class="bar"><span style="width:' + Math.round(100 * got / max) + '%"></span></div>' +
         '<span class="v">' + got + ' / ' + max + '</span></div>';
@@ -614,6 +644,19 @@
     if (act && S) {
       var a = act.dataset.act;
       if (a === 'check') checkQuestion(+act.dataset.q);
+      else if (a === 'reveal') {
+        var qi = +act.dataset.q, card = document.getElementById('q-' + qi);
+        card.querySelector('.open-model').hidden = false;
+        act.parentNode.remove();
+      } else if (a === 'self') {
+        var si = +act.dataset.q;
+        if (S.res[si]) return;
+        S.ans[si] = act.dataset.v === '1';
+        if (S.t.mode === 'exam') {
+          document.querySelectorAll('#q-' + si + ' [data-act="self"]').forEach(function (b) { b.classList.toggle('ghost', b !== act); });
+          updateProgress();
+        } else checkQuestion(si);
+      }
       else if (a === 'submit') submitExam();
       else if (a === 'retry') { renderTest(S.t.id); window.scrollTo(0, 0); }
       return;
@@ -683,6 +726,7 @@
       window.scrollTo(0, 0);
       return;
     }
+    if (C.noReview) { location.replace('#test'); return; }
     setTab('tekrar');
     S = null;
     if (current !== 'tekrar') {

@@ -616,3 +616,9 @@ input.blank:disabled { opacity: 1; }
   .result .row .bar { display: none; }
   .progress { padding: 8px 10px 8px 14px; gap: 10px; font-size: .88rem; }
 }
+
+/* Yazma soruları */
+.open-in { width: 100%; box-sizing: border-box; margin-top: 10px; padding: 8px 10px; border-radius: 6px;
+  border: 1px solid var(--border); background: var(--bg); color: inherit; font: inherit; resize: vertical; }
+.open-model { margin-top: 10px; padding: 10px 12px; border-radius: 6px; background: var(--ok-soft); }
+.open-model .self { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
