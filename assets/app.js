@@ -49,7 +49,39 @@
   var KW = ['if', 'else', 'elseif', 'for', 'foreach', 'while', 'as', 'function', 'return', 'echo', 'true', 'false', 'null', 'exit'];
   var HL = /(\u0001\d+\u0001)|(<!--[\s\S]*?-->|\/\/[^\n]*|\/\*[\s\S]*?\*\/)|("(?:\\.|[^"\\])*"?|'(?:\\.|[^'\\\n])*'?)|(<\?php|\?>)|(<\/?[a-zA-Z][\w-]*)|(\$[A-Za-z_]\w*)|(\b\d+(?:\.\d+)?\b)|(\b[A-Za-z_]\w*\b)/g;
 
-  function hl(code) { return C.lang === 'sh' ? hlSh(code) : hlPhp(code); }
+  function hl(code) { return C.lang === 'sh' ? hlSh(code) : C.lang === 'py' ? hlPy(code) : hlPhp(code); }
+
+  /* ---------- Python renklendirme ---------- */
+  var PYKW = ['def', 'return', 'if', 'elif', 'else', 'for', 'while', 'in', 'not', 'and', 'or', 'break', 'continue',
+    'match', 'case', 'True', 'False', 'None', 'import', 'from', 'pass', 'raise', 'try', 'except', 'is', 'lambda', 'global'];
+  var PYBI = ['print', 'input', 'int', 'float', 'str', 'len', 'range', 'sum', 'sorted', 'enumerate', 'type', 'round',
+    'isinstance', 'list', 'dict', 'max', 'min', 'abs', 'bool', 'Exception'];
+  var PY = /(\u0001\d+\u0001)|([rRfFbB]{0,2}(?:"""[\s\S]*?(?:"""|$)|'''[\s\S]*?(?:'''|$)|"(?:\\.|[^"\\\n])*"?|'(?:\\.|[^'\\\n])*'?))|(#[^\n]*)|(\b\d+(?:\.\d+)?\b)|(\b[A-Za-z_À-ɏ]\w*\b)/g;
+
+  function hlPy(code) {
+    var out = '', last = 0, m;
+    PY.lastIndex = 0;
+    while ((m = PY.exec(code))) {
+      out += esc(code.slice(last, m.index));
+      var t = m[0], cls = null;
+      last = PY.lastIndex;
+      if (m[1]) { out += t; continue; }
+      if (m[2]) {
+        // f-string içindeki {ifade} kısımları ayrı renklenmez, metin olarak kalır
+        // ama boşluk işaretleri metnin içinde kalabilir: onları geri koy
+        out += '<span class="s">' + esc(t).replace(/\u0001(\d+)\u0001/g, '</span>\u0001$1\u0001<span class="s">') + '</span>';
+        continue;
+      }
+      if (m[3]) cls = 'c';
+      else if (m[4]) cls = 'n';
+      else if (m[5]) {
+        if (PYKW.indexOf(t) !== -1) cls = 'k';
+        else if (PYBI.indexOf(t) !== -1 || code.charAt(last) === '(') cls = 'f';
+      }
+      out += cls ? '<span class="' + cls + '">' + esc(t) + '</span>' : esc(t);
+    }
+    return out + esc(code.slice(last));
+  }
 
   /* ---------- Kabuk (bash) renklendirme ---------- */
   var SH = /(\u0001\d+\u0001)|("(?:\\.|[^"\\])*"?|'[^'\n]*'?)|(#[^\n]*)|(\$\{?[A-Za-z_]\w*\}?|\$[!?#@*0-9])|(>>|&&|\|\||[|&;<>])|(--?[A-Za-z][\w-]*(?:=[^\s|;&]*)?)|(%\d+|\+\d+|\b\d+\b)|([A-Za-z_~./][\w.\/~:+-]*)|(\n)/g;
@@ -148,7 +180,7 @@
   }
   function codePool() {
     var list = [];
-    EXAMS.forEach(function (e) { e.questions.forEach(function (q) { if (q.type === 'code') list.push(q); }); });
+    EXAMS.forEach(function (e) { e.questions.forEach(function (q) { if (q.type === 'code' && list.indexOf(q) === -1) list.push(q); }); });
     return list.concat(EXTRA).map(function (q) { return copy(q); });
   }
 
@@ -184,7 +216,7 @@
   });
   if (codePool().length) {
     TESTS.push({
-      id: 'kod', group: 'ek', title: 'Kod tamamlama pratiği', desc: '17. soru tipi: foreach + if + toplam/sayaç kalıbı.',
+      id: 'kod', group: 'ek', title: 'Kod tamamlama pratiği', desc: C.codeDesc || '17. soru tipi: foreach + if + toplam/sayaç kalıbı.',
       mode: 'practice', showTopic: false, count: codePool().length, build: codePool
     });
   }
@@ -352,9 +384,10 @@
         return '<li><button type="button" class="opt" data-q="' + i + '" data-o="' + k + '"><span class="L">' + LETTERS[k] + '</span><span>' + fmt(o) + '</span></button></li>';
       }).join('') + '</ul>';
     } else if (q.type === 'open') {
+      if (q.code) body += codeBlock(q.code);
       body += '<textarea class="open-in" data-q="' + i + '" rows="3" placeholder="Cevabını yaz (isteğe bağlı), sonra cevaba bak."></textarea>' +
         '<div class="q-actions"><button type="button" class="btn ghost" data-act="reveal" data-q="' + i + '">Cevabı göster</button></div>' +
-        '<div class="open-model" hidden><div class="ans ok">Model cevap</div>' + fmtBlock(q.model) +
+        '<div class="open-model" hidden><div class="ans ok">Model cevap</div>' + fmtBlock(q.model) + (q.modelCode ? codeBlock(q.modelCode) : '') +
         '<div class="self"><span>Kendini puanla:</span>' +
         '<button type="button" class="btn" data-act="self" data-v="1" data-q="' + i + '">Bildim</button>' +
         '<button type="button" class="btn ghost" data-act="self" data-v="0" data-q="' + i + '">Bilemedim</button></div></div>';
@@ -534,7 +567,7 @@
       if (ta) ta.disabled = true;
       var om = el.querySelector('.open-model');
       if (om) om.remove();
-      exp = '<div class="ans ' + (r.ok ? 'ok' : 'bad') + '">' + (r.empty ? 'Puanlanmadı. Model cevap:' : (r.ok ? 'Bildin.' : 'Bilemedin. Model cevap:')) + '</div>' + fmtBlock(q.model);
+      exp = '<div class="ans ' + (r.ok ? 'ok' : 'bad') + '">' + (r.empty ? 'Puanlanmadı. Model cevap:' : (r.ok ? 'Bildin.' : 'Bilemedin. Model cevap:')) + '</div>' + fmtBlock(q.model) + (q.modelCode ? codeBlock(q.modelCode) : '');
     } else {
       el.querySelectorAll('input.blank').forEach(function (inp2) {
         var k = +inp2.dataset.b;
