@@ -1166,6 +1166,148 @@ while True:
         break`)
   ];
 
+  /* ---------- Ek kod yazma soruları (çalıştırıcıyla, kolaydan zora) ---------- */
+  function w(topic, d, q, model, modelCode, tests, starter, code) {
+    return { type: 'open', topic: topic, d: d, q: q, model: model, modelCode: modelCode, tests: tests, starter: starter || '', code: code };
+  }
+  var MENU = 'urunler = {"çay": 15, "kahve": 45, "tost": 70}';
+  var NEW = [
+    w('temel', 1, 'Kullanıcıdan doğum yılını alıp 2026’ya göre yaşını “Yaşınız: 20” şeklinde yazan programı yazınız.',
+      '`input` metin döndürür → `int(...)`; yaş = 2026 − yıl.',
+      `yil = int(input("Doğum yılınız: "))
+yas = 2026 - yil
+print(f"Yaşınız: {yas}")`,
+      [{ inp: ['2006'], expect: [{ n: [20] }] }, { inp: ['1990'], expect: [{ n: [36] }] }]),
+    w('metin', 1, 'Kullanıcıdan ürün adı ve fiyat alınız. Ürün adının baştaki/sondaki boşluklarını silip baş harfini büyütün; %20 KDV dahil fiyatı iki ondalıkla “Kalem: 60.00 TL” şeklinde yazınız.',
+      '`strip().title()` ile ad düzeltilir, fiyat `float`, KDV dahil = fiyat × 1.20, `:.2f`.',
+      `urun = input("Ürün: ").strip().title()
+fiyat = float(input("Fiyat: "))
+toplam = fiyat + fiyat * 0.20
+print(f"{urun}: {toplam:.2f} TL")`,
+      [{ inp: ['  kalem ', '50'], expect: [{ t: 'Kalem', cs: true, n: [60] }] }, { inp: ['defter', '42.5'], expect: [{ t: 'Defter', cs: true, n: [51] }] }]),
+    w('kosul', 1, 'Kullanıcının girdiği tam sayı 0’dan büyükse “Pozitif”, küçükse “Negatif”, eşitse “Sıfır” yazan programı yazınız.',
+      'if / elif / else; 0 son dala kalır.',
+      `sayi = int(input("Sayı: "))
+if sayi > 0:
+    print("Pozitif")
+elif sayi < 0:
+    print("Negatif")
+else:
+    print("Sıfır")`,
+      [{ inp: ['5'], expect: [{ t: 'pozitif' }] }, { inp: ['-3'], expect: [{ t: 'negatif' }] }, { inp: ['0'], expect: [{ t: 'sıfır' }] }]),
+    w('dongu', 2, 'Kullanıcıdan bir n sayısı alıp **while** döngüsüyle 1’den n’e kadar (n dahil) sayıların toplamını yazan programı yazınız.',
+      'Sayaç ve toplam döngüden önce; koşul `<=`; sayaç her turda artmalı (yoksa sonsuz döngü).',
+      `n = int(input("n: "))
+i = 1
+toplam = 0
+while i <= n:
+    toplam += i
+    i += 1
+print("Toplam:", toplam)`,
+      [{ inp: ['10'], expect: [{ n: [55] }] }, { inp: ['1'], expect: [{ n: [1] }] }, { inp: ['0'], expect: [{ n: [0] }] }]),
+    w('sozluk', 2, 'Verilen menü sözlüğünü kullanarak kullanıcıya ürün sorunuz. Ürün menüdeyse fiyatını, değilse “menüde yok” yazınız.',
+      '`if secim in urunler:` ile anahtar kontrolü, değer `urunler[secim]`. Kontrol etmeden okumak KeyError verir.',
+      `secim = input("Ürün: ").strip().lower()
+if secim in urunler:
+    print(f"{secim}: {urunler[secim]} TL")
+else:
+    print(f"{secim} menüde yok")`,
+      [{ setup: MENU, inp: ['kahve'], expect: [{ n: [45] }] }, { setup: MENU, inp: ['su'], expect: [{ t: 'yok' }] }], '', MENU),
+    w('liste', 2, 'Verilen not listesinin ortalamasını iki ondalıkla yazınız. Ardından ortalamanın üstündeki notları `enumerate` ile sıra numarasıyla (1’den başlayarak) yazınız.',
+      'Ortalama `sum / len` (413 / 6 = 68.83). `enumerate(notlar, start=1)` + `if not_ > ortalama`.',
+      `ortalama = sum(notlar) / len(notlar)
+print(f"Ortalama: {ortalama:.2f}")
+for sira, puan in enumerate(notlar, start=1):
+    if puan > ortalama:
+        print(f"{sira}. not: {puan}")`,
+      [{ setup: 'notlar = [80, 90, 70, 46, 95, 32]', expect: [{ n: [68.83] }, { n: [1, 80] }, { n: [2, 90] }, { n: [3, 70] }, { n: [5, 95] }] }],
+      '', 'notlar = [80, 90, 70, 46, 95, 32]'),
+    w('uygulama', 3, 'Verilen menüyle kafe kasası yazınız: kullanıcı 0 girene kadar ürün sorulsun. Ürün menüde yoksa “… menüde yok” yazılsın ve toplama eklenmesin; varsa fiyatı toplama eklensin. Sonunda toplam tutarı yazınız.',
+      'Kalıp: `while True` + `break` (0) + `continue` (menüde yok) + `toplam += urunler[urun]`. Toplam döngüden **önce** 0.',
+      `toplam = 0
+while True:
+    urun = input("Ürün: ").strip().lower()
+    if urun == "0":
+        break
+    if urun not in urunler:
+        print(f"{urun} menüde yok")
+        continue
+    toplam += urunler[urun]
+print(f"Toplam tutar: {toplam} TL")`,
+      [{ setup: MENU, inp: ['çay', 'çay', 'tost', 'su', '0'], expect: [{ t: 'su' }, { n: [100] }] }, { setup: MENU, inp: ['0'], expect: [{ n: [0] }] }],
+      '', MENU),
+    w('fonksiyon', 3, '`max()` kullanmadan, listedeki en büyük sayıyı **for** döngüsüyle bulup **return** eden `en_buyuk(liste)` fonksiyonunu yazınız. (Negatif sayılar da olabilir.)',
+      'En büyük başlangıçta listenin **ilk elemanı** olmalı (0 alınırsa tüm sayılar negatifken yanlış çıkar). Daha büyüğü görünce güncelle, sonda return.',
+      `def en_buyuk(liste):
+    enb = liste[0]
+    for x in liste:
+        if x > enb:
+            enb = x
+    return enb`,
+      [{ call: 'print(en_buyuk([3, 9, 2]))', expect: [{ n: [9] }], label: '[3, 9, 2]' },
+       { call: 'print(en_buyuk([-5, -2, -9]))', expect: [{ n: [-2] }], label: '[-5, -2, -9]' }],
+      'def en_buyuk(liste):\n    ')
+  ];
+
+  /* ---------- Vize hazırlık yazma sorularına test durumları ---------- */
+  var GL = [30000, 40000, 50000, 42000, 55000, 25000, 36000, 30000, 52000, 45000, 28000, 48000];
+  var LINES = function (pairs) { return pairs.map(function (p) { return { n: p }; }); };
+  var TESTS = [
+    { d: 2, starter: 'def aylikGelirleriYazdir(liste):\n    ', tests: [
+      { setup: GEL, call: 'aylikGelirleriYazdir(gelirler)', expect: LINES(GL.map(function (g, k) { return [k + 1, g]; })), label: 'gelirler' },
+      { call: 'aylikGelirleriYazdir([5, 7])', expect: LINES([[1, 5], [2, 7]]), label: '[5, 7] listesi' }] },
+    { d: 2, starter: 'def aralikListele(liste):\n    ', tests: [
+      { setup: GEL, inp: ['3', '5'], call: 'aralikListele(gelirler)', expect: LINES([[3, 50000], [4, 42000], [5, 55000]]) },
+      { setup: GEL, inp: ['12', '12'], call: 'aralikListele(gelirler)', expect: LINES([[12, 48000]]) }] },
+    { d: 3, starter: 'def aralikToplamOrtalama(liste):\n    ', tests: [
+      { setup: GEL, inp: ['1', '3'], call: 't, o = aralikToplamOrtalama(gelirler)\nprint(t, o)', expect: [{ n: [120000, 40000] }], label: 'dönen toplam ve ortalama' },
+      { setup: GEL, inp: ['4', '6'], call: 't, o = aralikToplamOrtalama(gelirler)\nprint(t, o)', expect: [{ n: [122000, 122000 / 3] }], label: 'dönen toplam ve ortalama' }] },
+    { d: 3, starter: 'def ortalamaUstuAylar(liste):\n    \n\ndef main():\n    \n\nmain()', tests: [
+      { setup: GEL, inp: ['4', '0'], expect: LINES([[3, 50000], [4, 42000], [5, 55000], [9, 52000], [10, 45000], [12, 48000]]), label: 'menüde 4, sonra 0' },
+      { setup: GEL, inp: ['0'], expect: [], label: 'hemen 0: program bitmeli' }] },
+    { d: 3, starter: 'def main():\n    \n\ndef apg1_kontrol(apg1):\n    \n\ndef ogtt_kontrol(apg2, pg):\n    \n\nmain()', tests: [
+      { inp: ['90', 'h'], expect: [{ t: 'normal' }] },
+      { inp: ['130', 'h'], expect: [{ t: 'diyabet' }] },
+      { inp: ['110', '95', '160', 'h'], expect: [{ t: 'izole bgt' }] },
+      { inp: ['110', '110', '120', 'h'], expect: [{ t: 'izole bag' }] },
+      { inp: ['110', '110', '160', 'h'], expect: [{ t: 'bag ve bgt' }] },
+      { inp: ['110', '95', '200', 'h'], expect: [{ t: 'diyabet' }] },
+      { inp: ['110', '95', '120', 'h'], expect: [{ t: 'normal' }] },
+      { inp: ['90', 'e', '130', 'h'], expect: [{ t: 'normal' }, { t: 'diyabet' }], label: 'iki hasta' }] },
+    { d: 3, starter: 'def not_hesapla():\n    \n\ndef harf_notu(ortalama):\n    ', tests: [
+      { inp: ['70', '80'], call: 'not_hesapla()', expect: [{ n: [76], t: 'CB', cs: true }] },
+      { inp: ['100', '40'], call: 'not_hesapla()', expect: [{ t: 'FF', cs: true }], label: 'final 50’nin altında' },
+      { inp: ['120', '50'], call: 'not_hesapla()', expect: [{ t: '100' }], label: '0–100 dışı uyarısı' },
+      { call: 'print(harf_notu(85), harf_notu(84.9), harf_notu(50), harf_notu(49))', expect: [{ t: 'BA BB FD FF', cs: true }], label: 'harf_notu sınırları' }] },
+    { d: 2, starter: 'def otopark():\n    ', tests: [
+      { inp: ['2.5', 'e'], call: 'otopark()', expect: [{ n: [80] }] },
+      { inp: ['4', 'e'], call: 'otopark()', expect: [{ n: [150] }], label: '3 saatten fazla: indirim yok' },
+      { inp: ['1', 'h'], call: 'otopark()', expect: [{ n: [50] }] },
+      { inp: ['0', 'h'], call: 'otopark()', expect: [{ t: 'geçersiz' }] }] },
+    { d: 2, starter: 'def kimlik_karti():\n    \n\ndef mevsim():\n    ', tests: [
+      { inp: [' ayşe', 'yilmaz ', '2006'], call: 'kimlik_karti()', expect: [{ t: 'Ayşe YILMAZ', cs: true }, { n: [2006] }, { n: [20] }], label: 'kimlik kartı' },
+      { inp: ['10'], call: 'mevsim()', expect: [{ t: 'sonbahar' }] },
+      { inp: ['2'], call: 'mevsim()', expect: [{ t: 'kış' }] },
+      { inp: ['13'], call: 'mevsim()', expect: [{ t: 'geçersiz' }] }] },
+    { d: 2, starter: 'def main():\n    \n\ndef tekveCiftToplam(sayi):\n    \n\nmain()', tests: [
+      { inp: ['5'], call: 'print(tekveCiftToplam(10))', expect: [{ n: [30, 25] }], label: 'tekveCiftToplam(10) → (30, 25)' }] },
+    { d: 2, tests: [
+      { inp: ['çay', 'tost', 'boyoz', '0'], expect: [{ t: 'tost' }, { n: [2] }, { t: 'çay boyoz' }] },
+      { inp: [' kahve ', '0'], expect: [{ n: [1] }, { t: 'kahve' }] }] },
+    { d: 2, tests: [
+      { inp: ['1', '3', '4', '4', '9', '2', '0'], expect: [{ n: [7] }, { n: [4.5] }], label: 'toplama, bölme, çıkış' },
+      { inp: ['3', '2.5', '2', '0'], expect: [{ n: [5] }], label: 'çarpma' }] }
+  ];
+  OPEN.forEach(function (q, k) { Object.assign(q, TESTS[k]); });
+  OPEN[3].code = GEL;
+
+  /* ---------- Zorluk: 1 kolay, 2 orta, 3 zor (soru sırasıyla) ---------- */
+  var DM = '122121211112121' + '1231233311211223' + '211223113221' + '1232211323231111' + '1223332222131221' +
+    '1212211222222123' + '1121211332222211331' + '12332231322' + '122232122212' + '32332132222222322212121';
+  var DF = '1112212121' + '1112212331' + '1122222122' + '2221';
+  MC.forEach(function (q, k) { q.d = +DM[k]; });
+  FILL.forEach(function (q, k) { q.d = +DF[k]; });
+
   /* ---------- Konu testleri ---------- */
   var TQ = {};
   window.TOPICS.forEach(function (t) { TQ[t.id] = []; });
@@ -1191,8 +1333,10 @@ while True:
     { id: 'demo1', title: 'Deneme vizesi 1', desc: '10 test + 6 boşluk + 1 kod + 1 yazma (100 puan).', questions: demo(0) },
     { id: 'demo2', title: 'Deneme vizesi 2', desc: 'Aynı format, deneme 1 ile çakışmaz.', questions: demo(1) },
     { id: 'demo3', title: 'Deneme vizesi 3', desc: 'Aynı format, öncekilerle çakışmaz.', questions: demo(2) },
+    { id: 'yazma', group: 'ek', mode: 'practice', title: 'Kod yazma pratiği (' + (OPEN.length + NEW.length) + ')',
+      desc: 'Kodunu yaz, çalıştır: yanlışsa hatalı satır gösterilir, iki denemeden sonra pes edebilirsin.', questions: NEW.concat(OPEN) },
     { id: 'tum', group: 'ek', mode: 'practice', title: 'Bütün test soruları (' + MC.length + ')', desc: 'Konu sırasıyla, anında kontrol.', questions: MC.slice() },
     { id: 'tumbosluk', group: 'ek', mode: 'practice', title: 'Bütün boşluk soruları (' + FILL.length + ')', desc: 'Tek kelimelik boşluklar, Enter ile kontrol.', questions: FILL.slice() }
   ];
-  window.PY_RAW = { MC: MC, FILL: FILL, CODE: CODE, OPEN: OPEN };
+  window.PY_RAW = { MC: MC, FILL: FILL, CODE: CODE, OPEN: OPEN, NEW: NEW };
 })();
