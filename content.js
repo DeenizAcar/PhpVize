@@ -14,12 +14,6 @@ window.COURSE = {
   points: { mc: 4, fill: 5, code: 20, open: 10 },
   randomExam: { mc: 10, fill: 6, code: 1, open: 1 },
   randomTitle: 'Rastgele vize',
-  levels: [
-    { d: 1, title: 'Kolay', n: 20, open: 1, desc: 'Temel kalıplar: 20 soru + 1 kısa kod yazma.' },
-    { d: 2, title: 'Orta', n: 20, open: 1, desc: 'Döngü, liste, fonksiyon çıktıları: 20 soru + 1 kod yazma.' },
-    { d: 3, title: 'Zor', n: 15, open: 2, desc: 'Tuzaklı çıktılar ve vize programları: 15 soru + 2 kod yazma.' }
-  ],
-  levelNote: 'Her açılışta farklı sorular, anında kontrol. Kod yazma sorularında kodun tarayıcıda çalıştırılır; yanlışsa hatalı satır gösterilir.',
   randomDesc: 'Her açılışta farklı: 10 test + 6 boşluk + 1 kod tamamlama + 1 yazma; az gördüğün sorular önce.'
 };
 

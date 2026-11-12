@@ -607,7 +607,10 @@ input.blank:disabled { opacity: 1; }
   .card { padding: 16px; }
   .format-grid { grid-template-columns: 1fr; }
   .topbar-inner { padding: 0 12px; gap: 8px; }
-  .tabs { gap: 0; }
+  .tabs { gap: 0; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tabs a { white-space: nowrap; flex: none; }
+  .theme-btn { flex: none; }
   .tabs a { padding: 0 8px; font-size: .92rem; }
   .courses a { padding: 3px 8px; font-size: .85rem; }
   pre.code { font-size: 13px; padding: 10px 12px; }
@@ -622,24 +625,3 @@ input.blank:disabled { opacity: 1; }
   border: 1px solid var(--border); background: var(--bg); color: inherit; font: inherit; resize: vertical; }
 .open-model { margin-top: 10px; padding: 10px 12px; border-radius: 6px; background: var(--ok-soft); }
 .open-model .self { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
-
-/* Kod çalıştırıcı (yazma soruları) */
-.code-in {
-  width: 100%; box-sizing: border-box; margin: 10px 0 0; padding: 12px 14px;
-  font: 14px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  background: var(--code-bg); color: #e6e9ef; border: 1px solid var(--border); border-radius: 8px;
-  resize: vertical; tab-size: 4; white-space: pre; overflow-x: auto;
-}
-.code-in:focus { outline: 2px solid var(--accent, #5b8def); outline-offset: 1px; }
-.given { font-size: .85rem; color: var(--muted); margin: 12px 0 4px; }
-.run-out { margin-top: 10px; }
-.run-out p { margin: 8px 0; }
-.run-ok, .run-bad { padding: 8px 12px; border-radius: 8px; font-weight: 600; }
-.run-ok { background: var(--ok-soft); color: var(--ok); }
-.run-bad { background: var(--bad-soft); color: var(--bad); }
-pre.code.listing, pre.code.outlist { margin: 0; padding: 10px 0; border-radius: 8px; background: var(--code-bg); color: #e6e9ef; overflow-x: auto; font-size: 13.5px; line-height: 1.55; }
-pre.code.outlist { padding: 10px 14px; }
-pre.code.listing .ln { display: block; padding: 0 14px 0 0; }
-pre.code.listing .no { display: inline-block; width: 2.6em; padding-right: .8em; text-align: right; color: #6b7385; user-select: none; }
-pre.code .bad-line { display: block; background: rgba(240, 113, 103, .22); box-shadow: inset 3px 0 0 #f07167; }
-pre.code.outlist .bad-line { margin: 0 -14px; padding: 0 14px; }

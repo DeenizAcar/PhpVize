@@ -161,6 +161,21 @@
   // Rastgele testlerde az görülen sorular öne alınır (tarayıcıda sayılır)
   var SEEN_KEY = BEST_KEY + '-seen';
   function sig(q) { return (q.q + '|' + (q.code || '')).slice(0, 160); }
+
+  /* ---------- Yanlışlarım ---------- */
+  var WRONG_KEY = BEST_KEY + '-yanlis';
+  function getWrong() { try { return JSON.parse(localStorage.getItem(WRONG_KEY)) || {}; } catch (e) { return {}; } }
+  function logWrong(q, r) {
+    if (!q || !r || r.empty) return;
+    var w = getWrong(), k = sig(q);
+    if (r.ok) { if (!(k in w)) return; delete w[k]; }
+    else {
+      w[k] = { q: JSON.parse(JSON.stringify(q)), t: Date.now() };
+      var ks = Object.keys(w);
+      if (ks.length > 300) ks.sort(function (a, b) { return w[a].t - w[b].t; }).slice(0, ks.length - 300).forEach(function (x) { delete w[x]; });
+    }
+    try { localStorage.setItem(WRONG_KEY, JSON.stringify(w)); } catch (e) { /* yok say */ }
+  }
   function getSeen() { try { return JSON.parse(localStorage.getItem(SEEN_KEY)) || {}; } catch (e) { return {}; } }
   function markSeen(qs) {
     var s = getSeen();
@@ -220,29 +235,24 @@
       mode: 'practice', showTopic: false, count: codePool().length, build: codePool
     });
   }
-  // Zorluk seviyesi testleri: sorulardaki d (1 kolay, 2 orta, 3 zor) alanına göre
-  (C.levels || []).forEach(function (L) {
-    function lv(type) { return poolOf(type).filter(function (q) { return q.d === L.d; }); }
-    var nQ = Math.min(L.n, lv('mc').length + lv('fill').length), nO = Math.min(L.open || 0, lv('open').length);
-    TESTS.push({
-      id: 'seviye-' + L.d, group: 'seviye', title: L.title, desc: L.desc, mode: 'practice', random: true, showTopic: true,
-      count: nQ + nO, level: L.d,
-      build: function () {
-        var qs = freshFirst(lv('mc').concat(lv('fill'))).slice(0, nQ)
-          .sort(function (a, b) { return (a.type === b.type ? 0 : a.type === 'mc' ? -1 : 1) || topicIndex(a.topic) - topicIndex(b.topic); });
-        return qs.concat(freshFirst(lv('open')).slice(0, nO));
-      }
-    });
-  });
   TESTS.push({
     id: 'karisik', group: 'ek', title: 'Karışık 20 soru', desc: 'Konu testlerinden rastgele, anında kontrol.',
     mode: 'practice', random: true, showTopic: true, count: 20,
     build: function () { return freshFirst(poolOf('mc').concat(poolOf('fill'), poolOf('open'))).slice(0, 20); }
   });
 
+  TESTS.push({
+    id: 'yanlislar', group: 'yanlis', title: 'Yanlışlarım', mode: 'practice', showTopic: true,
+    desc: 'Yanlış yaptığın sorular burada birikir; doğru cevapladığında listeden düşer.',
+    get count() { return Object.keys(getWrong()).length; },
+    build: function () { var w = getWrong(); return shuffle(Object.keys(w).map(function (k) { return copy(w[k].q); })); }
+  });
+
   /* ---------- Sekmeler ---------- */
   function setTab(name) {
     document.querySelectorAll('.tabs a').forEach(function (a) { a.classList.toggle('active', a.dataset.tab === name); });
+    var on = document.querySelector('.tabs a.active'), nav = document.querySelector('.tabs');
+    if (on && nav && nav.scrollWidth > nav.clientWidth) nav.scrollLeft = on.offsetLeft - (nav.clientWidth - on.offsetWidth) / 2;
   }
 
   /* ---------- Genel tekrar ---------- */
@@ -350,8 +360,8 @@
     }
     app.innerHTML = '<h1>Test</h1>' +
       '<p class="lead">' + fmt(C.testLead || '') + '</p>' +
+      group('Yanlışlarım', 'yanlis', 'Testlerde yanlış yaptığın sorular. Burada doğru cevapladığında listeden düşer.') +
       group('Hocanın çalışma soruları', 'hoca', C.hocaNote || 'Cevap anahtarındaki açıklamalarla, her soru anında kontrol edilir.') +
-      group('Zorluk seviyesine göre', 'seviye', C.levelNote || 'Her açılışta farklı sorular, anında kontrol.') +
       group('Vize formatında (100 puan)', 'vize', 'Cevaplar sonda topluca puanlanır, gerçek sınav gibi.') +
       group('Konu testleri', 'konu', 'Her soru anında kontrol edilir ve açıklaması gösterilir.') +
       group('Ek pratik', 'ek');
@@ -398,14 +408,6 @@
       body += '<ul class="opts">' + q.opts.map(function (o, k) {
         return '<li><button type="button" class="opt" data-q="' + i + '" data-o="' + k + '"><span class="L">' + LETTERS[k] + '</span><span>' + fmt(o) + '</span></button></li>';
       }).join('') + '</ul>';
-    } else if (q.type === 'open' && q.tests && window.PyRun) {
-      if (q.code) body += '<div class="given">Hazır verilen (programına otomatik eklenir):</div>' + codeBlock(q.code);
-      body += '<textarea class="code-in" data-q="' + i + '" rows="' + Math.max(8, (q.starter || '').split('\n').length + 4) + '" spellcheck="false" autocapitalize="off" autocorrect="off" placeholder="Python kodunu buraya yaz…">' + esc(q.starter || '') + '</textarea>' +
-        '<div class="q-actions"><button type="button" class="btn" data-act="run" data-q="' + i + '">Çalıştır ve kontrol et</button>' +
-        '<span class="hint">Ctrl+Enter · ' + q.tests.length + ' test</span>' +
-        '<button type="button" class="btn ghost" data-act="giveup" data-q="' + i + '" hidden>Pes et, çözümü göster</button></div>' +
-        '<div class="run-out" hidden></div>' +
-        '<div class="open-model" hidden><div class="ans ok">Hocanın çözümü</div>' + fmtBlock(q.model) + (q.modelCode ? codeBlock(q.modelCode) : '') + '</div>';
     } else if (q.type === 'open') {
       if (q.code) body += codeBlock(q.code);
       body += '<textarea class="open-in" data-q="' + i + '" rows="3" placeholder="Cevabını yaz (isteğe bağlı), sonra cevaba bak."></textarea>' +
@@ -434,8 +436,8 @@
       return;
     }
     var qs = t.build();
+    if (!qs.length) { app.innerHTML = '<a class="back" href="#test">← Testler</a><h1>' + esc(t.title) + '</h1><p class="empty">' + (t.id === 'yanlislar' ? 'Şu an yanlış listen boş. Testleri çözdükçe yanlış yaptığın sorular burada birikir.' : 'Bu testte soru yok.') + '</p>'; return; }
     if (t.random) markSeen(qs);
-    if (window.PyRun && qs.some(function (q) { return q.tests; })) window.PyRun.warm();
     S = {
       t: t, qs: qs,
       ans: qs.map(function (q) { return q.type === 'code' ? q.blanks.map(function () { return ''; }) : (q.type === 'fill' ? '' : null); }),
@@ -478,7 +480,8 @@
     return a.some(function (x) { return normAns(x) !== ''; });
   }
 
-  function grade(i) {
+  function grade(i) { var r = grade0(i); logWrong(S.qs[i], r); return r; }
+  function grade0(i) {
     var q = S.qs[i], a = S.ans[i];
     if (q.type === 'mc') { var ok = a === q.a; return { ok: ok, frac: ok ? 1 : 0, empty: a === null }; }
     if (q.type === 'fill') { var ok2 = matchAns(a, q.ans, q.cs); return { ok: ok2, frac: ok2 ? 1 : 0, empty: normAns(a) === '' }; }
@@ -559,7 +562,7 @@
       res.textContent = n + '/' + r.parts.length + ' boşluk doğru' + (S.t.mode === 'exam' ? ' · ' + Math.round(qPoints(q) * r.frac) + ' puan' : '');
     } else {
       res.textContent = r.ok ? '✓ Doğru' : (r.empty ? '— Boş' : '✗ Yanlış');
-      if (q.type === 'open' && !r.empty) res.textContent = q.tests ? (r.ok ? '✓ Testler geçti' : '✗ Pes edildi') : (r.ok ? '✓ Bildim' : '✗ Bilemedim');
+      if (q.type === 'open' && !r.empty) res.textContent = r.ok ? '✓ Bildim' : '✗ Bilemedim';
     }
     res.className = 'res ' + (r.ok ? 'ok' : 'bad');
 
@@ -587,15 +590,11 @@
         exp += '<div class="why"><b>Senin cevabın (<code>' + esc(typed) + '</code>):</b> ' + fmt(q.whyFill[typed]) + '</div>';
       }
     } else if (q.type === 'open') {
-      var ta = el.querySelector('.open-in, .code-in');
-      if (ta) ta.readOnly = true;
-      el.querySelectorAll('[data-act="run"], [data-act="giveup"]').forEach(function (b) { b.disabled = true; });
+      var ta = el.querySelector('.open-in');
+      if (ta) ta.disabled = true;
       var om = el.querySelector('.open-model');
       if (om) om.remove();
-      var msg = q.tests
-        ? (r.empty ? 'Çalıştırılmadı. Hocanın çözümü:' : (r.ok ? 'Testlerin hepsi geçti. Hocanın çözümü de şöyle:' : 'Pes ettin. Hocanın çözümü:'))
-        : (r.empty ? 'Puanlanmadı. Model cevap:' : (r.ok ? 'Bildin.' : 'Bilemedin. Model cevap:'));
-      exp = '<div class="ans ' + (r.ok ? 'ok' : 'bad') + '">' + msg + '</div>' + fmtBlock(q.model) + (q.modelCode ? codeBlock(q.modelCode) : '');
+      exp = '<div class="ans ' + (r.ok ? 'ok' : 'bad') + '">' + (r.empty ? 'Puanlanmadı. Model cevap:' : (r.ok ? 'Bildin.' : 'Bilemedin. Model cevap:')) + '</div>' + fmtBlock(q.model) + (q.modelCode ? codeBlock(q.modelCode) : '');
     } else {
       el.querySelectorAll('input.blank').forEach(function (inp2) {
         var k = +inp2.dataset.b;
@@ -686,102 +685,6 @@
     window.scrollTo(0, 0);
   }
 
-  /* ---------- Kod çalıştırıcı (yazma soruları) ---------- */
-  function codeListing(code, bad) {
-    bad = [].concat(bad).filter(Boolean);
-    return '<pre class="code listing">' + code.split('\n').map(function (l, k) {
-      var n = k + 1;
-      return '<span class="ln' + (bad.indexOf(n) !== -1 ? ' bad-line' : '') + '"><span class="no">' + n + '</span>' + (hl(l) || ' ') + '</span>';
-    }).join('') + '</pre>';
-  }
-  function inpText(c) { return (c.inp && c.inp.length) ? c.inp.map(function (x) { return '<code>' + esc(x) + '</code>'; }).join(' → ') : 'yok'; }
-
-  function runCode(i) {
-    var q = S.qs[i], el = document.getElementById('q-' + i);
-    if (S.res[i] || !el) return;
-    var ta = el.querySelector('.code-in'), btn = el.querySelector('[data-act="run"]'), box = el.querySelector('.run-out');
-    var code = ta.value.replace(/\t/g, '    ');
-    if (!code.trim()) { box.hidden = false; box.innerHTML = '<p class="hint">Önce kodunu yaz.</p>'; return; }
-    btn.disabled = true;
-    btn.textContent = 'Çalışıyor…';
-    box.hidden = false;
-    box.innerHTML = '<p class="hint">Python hazırlanıyor (ilk seferde birkaç saniye sürer)…</p>';
-    window.PyRun.run(code, q.tests).then(function (results) {
-      btn.disabled = false;
-      btn.textContent = 'Çalıştır ve kontrol et';
-      var judged = results.map(function (r, k) { return window.PyRun.judge(r, q.tests[k]); });
-      var passed = judged.filter(function (j) { return j.ok; }).length;
-      if (passed === judged.length) {
-        box.innerHTML = '<div class="run-ok">✓ ' + passed + ' / ' + judged.length + ' test geçti.</div>';
-        S.ans[i] = true;
-        if (S.t.mode === 'exam') { el.querySelector('.open-model').hidden = false; updateProgress(); }
-        else checkQuestion(i);
-        return;
-      }
-      S.tries = S.tries || {};
-      S.tries[i] = (S.tries[i] || 0) + 1;
-      var k = judged.findIndex(function (j) { return !j.ok; }), j = judged[k], c = q.tests[k];
-      var html = '<div class="run-bad">✗ ' + passed + ' / ' + judged.length + ' test geçti. Test ' + (k + 1) + ' başarısız' +
-        (c.label ? ' (' + esc(c.label) + ')' : '') + '. Girdiler: ' + inpText(c) + '</div>';
-      var badLine = null, retLine = null;
-      if (j.kind === 'error') {
-        var er = j.error, tr = window.PyRun.ERR_TR[er.type] || '';
-        badLine = er.line;
-        var head = er.type === 'NoInput' || er.type === 'TooLong' || er.type === 'Timeout' ? '' : '<code>' + esc(er.type + (er.msg ? ': ' + er.msg : '')) + '</code> ';
-        html += '<p>' + (badLine ? '<b>Satır ' + badLine + '</b>: ' : '') + head + esc(tr) + '</p>';
-      } else {
-        badLine = j.line;
-        html += '<p>Beklenen: ' + esc(j.want) + ' içeren bir satır. ' +
-          (j.at ? 'Bunun yerine <b>satır ' + (j.line || '?') + '</b> şunu yazdı: <code>' + esc(j.at.text) + '</code>' +
-            ((retLine = j.at.ret) && retLine !== j.line ? '. Yazılan değer <b>satır ' + retLine + '</b>’deki <code>return</code>’den geliyor; hata büyük ihtimalle orada ya da o fonksiyonun koşullarında.' : '. Bu satır yanlış değeri yazdırdı; değeri hesaplayan satırlara da bak (döngü sınırı, koşul, formül).') : 'Ama program bu noktada başka bir şey yazmadı (yazdırma eksik ya da döngü erken bitiyor).') + '</p>';
-      }
-      if (j.lines && j.lines.length) {
-        html += '<div class="given">Programının çıktısı:</div><pre class="code outlist">' + j.lines.map(function (l, n) {
-          return '<span class="' + (j.kind === 'wrong' && n === j.idx ? 'bad-line' : '') + '">' + (esc(l.text) || ' ') + '</span>';
-        }).join('\n') + '</pre>';
-      }
-      html += '<div class="given">Kodun' + (badLine ? ' (hatalı satır işaretli)' : '') + ':</div>' + codeListing(code, [badLine, retLine]);
-      if (S.tries[i] >= 2) html += '<p class="hint">İki deneme oldu. Düzeltip tekrar deneyebilir ya da “Pes et” ile çözümü görebilirsin.</p>';
-      else html += '<p class="hint">Kodu düzeltip tekrar çalıştır.</p>';
-      box.innerHTML = html;
-      if (S.tries[i] >= 2) el.querySelector('[data-act="giveup"]').hidden = false;
-    }).catch(function (err) {
-      btn.disabled = false;
-      btn.textContent = 'Çalıştır ve kontrol et';
-      box.innerHTML = '<div class="run-bad">Python çalıştırılamadı: ' + esc(err.message) + '. İnternet bağlantını kontrol edip tekrar dene.</div>';
-      el.querySelector('[data-act="giveup"]').hidden = false;
-    });
-  }
-
-  // Kod kutusu: Tab = 4 boşluk, Enter girintiyi korur (":" sonrası +4), Ctrl+Enter çalıştırır
-  app.addEventListener('keydown', function (e) {
-    var ta = e.target;
-    if (!ta.matches || !ta.matches('textarea.code-in') || ta.readOnly) return;
-    var s = ta.selectionStart, v = ta.value;
-    function put(txt, del) {
-      ta.setRangeText(txt, s - (del || 0), ta.selectionEnd, 'end');
-    }
-    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); runCode(+ta.dataset.q); return; }
-    if (e.key === 'Tab' && !e.shiftKey) { e.preventDefault(); put('    '); return; }
-    if (e.key === 'Tab' && e.shiftKey) {
-      e.preventDefault();
-      var ls = v.lastIndexOf('\n', s - 1) + 1, m = v.slice(ls).match(/^ {1,4}/);
-      if (m) { ta.setRangeText('', ls, ls + m[0].length, 'preserve'); ta.selectionStart = ta.selectionEnd = Math.max(ls, s - m[0].length); }
-      return;
-    }
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      var line = v.slice(v.lastIndexOf('\n', s - 1) + 1, s), ind = line.match(/^ */)[0];
-      if (/:\s*$/.test(line)) ind += '    ';
-      put('\n' + ind);
-      return;
-    }
-    if (e.key === 'Backspace' && s === ta.selectionEnd) {
-      var before = v.slice(v.lastIndexOf('\n', s - 1) + 1, s);
-      if (before.length && /^ +$/.test(before)) { e.preventDefault(); var d = before.length % 4 || 4; ta.setRangeText('', s - d, s, 'end'); }
-    }
-  });
-
   /* ---------- Olaylar ---------- */
   app.addEventListener('click', function (e) {
     var opt = e.target.closest('.opt');
@@ -813,17 +716,6 @@
           document.querySelectorAll('#q-' + si + ' [data-act="self"]').forEach(function (b) { b.classList.toggle('ghost', b !== act); });
           updateProgress();
         } else checkQuestion(si);
-      }
-      else if (a === 'run') runCode(+act.dataset.q);
-      else if (a === 'giveup') {
-        var gi = +act.dataset.q;
-        if (S.res[gi]) return;
-        S.ans[gi] = false;
-        if (S.t.mode === 'exam') {
-          document.querySelector('#q-' + gi + ' .open-model').hidden = false;
-          act.hidden = true;
-          updateProgress();
-        } else checkQuestion(gi);
       }
       else if (a === 'submit') submitExam();
       else if (a === 'retry') { renderTest(S.t.id); window.scrollTo(0, 0); }
@@ -894,6 +786,10 @@
       window.scrollTo(0, 0);
       return;
     }
+    if (page === 'ders' && window.KonuDers) { setTab('ders'); current = 'ders'; S = null; window.KonuDers.render(app, arg); return; }
+    if (page === 'kod' && window.KodAlistirma) { setTab('kod'); current = 'kod'; S = null; window.KodAlistirma.render(app, arg, parts[2]); return; }
+    if (page === 'prova' && window.Prova) { setTab('prova'); current = 'prova'; S = null; window.Prova.render(app, arg); return; }
+    if (page === 'kopya' && window.Kopya) { setTab('kopya'); current = 'kopya'; S = null; window.Kopya.render(app, arg); return; }
     if (C.noReview) { location.replace('#test'); return; }
     setTab('tekrar');
     S = null;
